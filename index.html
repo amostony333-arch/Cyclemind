@@ -28,6 +28,19 @@
         <p>Real-time regime detection, funding analysis, and portfolio insights for BTC, ETH & SOL</p>
     </header>
 
+    <!-- Prominent email sign-up CTA — no wallet, no API keys, just email -->
+    <section class="email-cta" id="email-cta">
+        <div class="email-cta-inner">
+            <h2>Try Demo Trading — Free, No Wallet Required</h2>
+            <p>Enter your email and we'll send you a secure sign-in link to a demo account preloaded with $10,000 in simulated funds. No crypto wallet, no API keys, no real money.</p>
+            <form id="hero-email-form" class="hero-email-form">
+                <input type="email" id="hero-email-address" placeholder="you@example.com" required>
+                <button type="submit">Get Demo Access</button>
+            </form>
+            <p id="hero-email-status" class="hero-email-status"></p>
+        </div>
+    </section>
+
     <main id="dashboard">
 
         <div class="module full-width" id="regime-module">
@@ -150,10 +163,10 @@
 
             <div id="email-tab-content" style="display:none;">
                 <h2>Sign in with Email</h2>
-                <p class="modal-subtext">We'll generate a non-custodial wallet in your browser. Your private key never touches our servers — you alone control it.</p>
+                <p class="modal-subtext">We'll send a secure sign-in link to your email — no wallet or API keys needed for demo trading.</p>
                 <form id="email-login-form">
                     <input type="email" id="email-address" placeholder="you@example.com" required>
-                    <button type="submit">Create Wallet & Continue</button>
+                    <button type="submit">Send Sign-In Link</button>
                 </form>
             </div>
         </div>
