@@ -55,7 +55,9 @@ MAX_POSITION_PCT = 40.0             # max single-asset exposure via auto-trade
 MAX_EQUITY_HISTORY_POINTS = 200
 
 USERS_FILE = Path("users.json")
-RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+BREVO_API_KEY = os.environ.get("BREVO_API_KEY")
+BREVO_SENDER_EMAIL = os.environ.get("BREVO_SENDER_EMAIL", "amostony333@gmail.com")
+BREVO_SENDER_NAME = "CycleMind"
 MAGIC_LINKS_FILE = Path("magic_links.json")
 MAGIC_LINK_EXPIRY_MINUTES = 15
 FRONTEND_URL = "https://cyclemind.vercel.app"
@@ -146,6 +148,31 @@ def _ensure_user_defaults(user: dict) -> dict:
     user.setdefault("auto_trade_halted_reason", None)
     user.setdefault("equity_history", [])   # [{ "t": iso_timestamp, "equity": float }]
     return user
+
+# ==================== BREVO EMAIL HELPER ====================
+
+def _send_email_brevo(to_email: str, subject: str, html_content: str):
+    """Send a transactional email via Brevo API."""
+    if not BREVO_API_KEY:
+        raise HTTPException(status_code=500, detail="Email service not configured — BREVO_API_KEY missing")
+
+    resp = requests.post(
+        "https://api.brevo.com/v3/smtp/email",
+        headers={
+            "api-key": BREVO_API_KEY,
+            "Content-Type": "application/json",
+        },
+        json={
+            "sender": {"name": BREVO_SENDER_NAME, "email": BREVO_SENDER_EMAIL},
+            "to": [{"email": to_email}],
+            "subject": subject,
+            "htmlContent": html_content,
+        },
+        timeout=10,
+    )
+    if resp.status_code >= 400:
+        raise HTTPException(status_code=502, detail=f"Could not send email: {resp.text}")
+    return resp
 
 # ==================== RISK / EQUITY HELPERS ====================
 
@@ -497,7 +524,6 @@ def entry_exit_signal(symbol: str):
     score = 0
     reasons = []
 
-    # Bollinger Band position
     if current_price <= bb["lower"]:
         score += 2
         reasons.append("Price at/below lower Bollinger Band (oversold)")
@@ -505,7 +531,6 @@ def entry_exit_signal(symbol: str):
         score -= 2
         reasons.append("Price at/above upper Bollinger Band (overbought)")
 
-    # Daily MA trend
     if sma_20d > sma_50d:
         score += 1
         reasons.append("20D MA above 50D MA (bullish daily trend)")
@@ -520,7 +545,6 @@ def entry_exit_signal(symbol: str):
         score -= 1
         reasons.append("Price below 20D moving average")
 
-    # Support/resistance proximity
     near_support = any(abs(current_price - lvl) / lvl * 100 <= 0.75 for lvl in sr["support"])
     near_resistance = any(abs(current_price - lvl) / lvl * 100 <= 0.75 for lvl in sr["resistance"])
     if near_support:
@@ -657,7 +681,7 @@ def email_signup(req: EmailSignup):
             "email": req.email,
             "wallet_address": req.wallet_address,
             "demo_balance_usdt": DEMO_STARTING_BALANCE,
-            "demo_positions": {},       # { "BTC": {"amount": 0.05, "avg_entry": 67000} }
+            "demo_positions": {},
             "demo_trade_log": [],
             "bitget_linked": False,
         }
@@ -682,18 +706,29 @@ def request_magic_link(req: MagicLinkRequest):
     _save_links(links)
 
     link_url = f"{FRONTEND_URL}/?magic_token={token}"
-    resp = requests.post(
-        "https://api.resend.com/emails",
-        headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
-        json={
-            "from": "CycleMind <onboarding@resend.dev>",
-            "to": [req.email],
-            "subject": "Your CycleMind demo login link",
-            "html": f"<p>Click below to access your CycleMind demo account:</p><p><a href='{link_url}'>Sign in to CycleMind</a></p><p>This link expires in {MAGIC_LINK_EXPIRY_MINUTES} minutes.</p>",
-        },
+
+    html_content = f"""
+    <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;background:#0a0f1e;border-radius:12px;">
+        <h2 style="color:#0078ff;margin-bottom:8px;">CycleMind</h2>
+        <p style="color:#c0d0e8;margin-bottom:24px;">Click the button below to sign in to your demo account.</p>
+        <a href="{link_url}"
+           style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0078ff,#00c6ff);
+                  color:white;border-radius:8px;text-decoration:none;font-weight:600;font-size:1rem;">
+            Sign in to CycleMind
+        </a>
+        <p style="color:#607090;font-size:0.8rem;margin-top:28px;">
+            This link expires in {MAGIC_LINK_EXPIRY_MINUTES} minutes.<br>
+            If you didn't request this, you can safely ignore it.
+        </p>
+    </div>
+    """
+
+    _send_email_brevo(
+        to_email=req.email,
+        subject="Your CycleMind sign-in link",
+        html_content=html_content,
     )
-    if resp.status_code >= 400:
-        raise HTTPException(status_code=502, detail="Could not send email")
+
     return {"status": "sent"}
 
 
@@ -828,7 +863,6 @@ def execute_demo_trade(req: DemoTradeRequest):
         "demo_trade_log": trade_log,
     })
 
-    # Record equity snapshot after every trade
     updated_user = _get_user(req.email)
     _record_equity_snapshot(req.email, updated_user)
 
@@ -1003,13 +1037,12 @@ async def _run_auto_trade_cycle():
                     "auto_trade_enabled": False,
                     "auto_trade_halted_reason": block_reason,
                 })
-                break   # stop processing this user this cycle
+                break
 
             try:
                 execute_demo_trade(DemoTradeRequest(email=email, coin=coin, side=side, amount_usd=trade_size))
                 last_trades[coin] = now.isoformat()
                 _update_user(email, {"last_auto_trade": last_trades})
-                # Record equity snapshot after each auto-trade
                 updated_user = _get_user(email)
                 _record_equity_snapshot(email, updated_user)
             except HTTPException:
