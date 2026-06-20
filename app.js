@@ -354,7 +354,12 @@ async function loadLivePrices() {
 async function loadTrending() {
     const el = document.getElementById("trending-content");
     try {
-        const res = await fetch("https://api.coingecko.com/api/v3/search/trending");
+        const res = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd&include_24hr_change=true", {
+    headers: {
+        "Accept": "application/json",
+        "x-cg-demo-api-key": "CG-demo"
+    }
+});
         const data = await res.json();
         let html = "";
         data.coins.slice(0, 6).forEach((item, i) => {
