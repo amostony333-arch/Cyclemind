@@ -11,7 +11,7 @@ body {
     min-height: 100vh;
 }
 
-/* NAVBAR */
+/* ==================== NAVBAR ==================== */
 .navbar {
     background: #ffffff;
     border-bottom: 2px solid #e0eeff;
@@ -82,7 +82,19 @@ body {
     font-size: 0.85rem;
 }
 
-/* HERO */
+#logout-btn {
+    background: transparent;
+    border: 1px solid #ff4444;
+    color: #ff4444;
+    padding: 0.4rem 0.9rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    margin-left: 0.6rem;
+}
+#logout-btn:hover { background: rgba(255, 68, 68, 0.1); }
+
+/* ==================== HERO ==================== */
 .hero {
     background: linear-gradient(135deg, #0078ff 0%, #00c6ff 100%);
     color: white;
@@ -103,7 +115,7 @@ body {
     font-weight: 400;
 }
 
-/* DASHBOARD */
+/* ==================== DASHBOARD ==================== */
 #dashboard {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -150,7 +162,7 @@ body {
     letter-spacing: -0.3px;
 }
 
-/* METRICS */
+/* ==================== METRICS ==================== */
 .metric {
     display: flex;
     justify-content: space-between;
@@ -187,7 +199,7 @@ body {
     color: #0056cc;
 }
 
-/* BADGES */
+/* ==================== BADGES ==================== */
 .badge {
     background: linear-gradient(135deg, #0078ff, #00c6ff);
     color: white;
@@ -198,7 +210,18 @@ body {
     letter-spacing: 0.5px;
 }
 
-/* LOADING */
+.status-badge {
+    padding: 0.25rem 0.7rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+.status-active  { background: rgba(0, 165, 80, 0.12); color: #00a550; border: 1px solid rgba(0, 165, 80, 0.3); }
+.status-disabled { background: rgba(144, 168, 200, 0.1); color: #90a8c8; border: 1px solid rgba(144, 168, 200, 0.25); }
+.status-halted  { background: rgba(255, 68, 68, 0.12); color: #ff4444; border: 1px solid rgba(255, 68, 68, 0.3); }
+
+/* ==================== LOADING ==================== */
 .loading {
     color: #90a8c8;
     font-size: 0.85rem;
@@ -206,7 +229,7 @@ body {
     padding: 1rem 0;
 }
 
-/* MODAL */
+/* ==================== MODAL ==================== */
 .modal {
     position: fixed;
     inset: 0;
@@ -284,7 +307,153 @@ body {
     line-height: 1;
 }
 
-/* FOOTER */
+/* Login tabs */
+.login-tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+.tab-btn {
+    flex: 1;
+    padding: 0.6rem;
+    border: 1px solid #2a3f5f;
+    background: transparent;
+    color: #90a8c8;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+.tab-btn.active { background: #0078ff; color: white; border-color: #0078ff; }
+
+/* Wallet reveal fields */
+.wallet-field { margin-top: 0.9rem; }
+.wallet-field label { display: block; font-size: 0.75rem; color: #90a8c8; margin-bottom: 0.3rem; }
+.wallet-field code {
+    display: block;
+    background: #0d1830;
+    padding: 0.6rem;
+    border-radius: 6px;
+    word-break: break-all;
+    font-size: 0.78rem;
+    color: #00c6ff;
+}
+
+/* ==================== BUTTONS ==================== */
+.one-click-btn {
+    margin-left: 0.6rem;
+    padding: 0.3rem 0.7rem;
+    border: none;
+    border-radius: 6px;
+    color: white;
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.one-click-btn:hover { filter: brightness(1.1); }
+
+.toggle-btn {
+    border: none;
+    border-radius: 4px;
+    padding: 0.35rem 0.9rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+}
+.toggle-btn.on  { background: rgba(0, 165, 80, 0.12); color: #00a550; border: 1px solid rgba(0, 165, 80, 0.3); }
+.toggle-btn.off { background: rgba(144, 168, 200, 0.1); color: #90a8c8; border: 1px solid rgba(144, 168, 200, 0.25); }
+
+.settings-save-btn {
+    width: 100%;
+    padding: 0.6rem;
+    background: #0078ff;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    margin-top: 0.6rem;
+}
+.settings-save-btn:hover { background: #0066d6; }
+
+.kill-switch-btn {
+    width: 100%;
+    padding: 0.6rem;
+    margin-top: 0.6rem;
+    background: transparent;
+    border: 1px solid #ff4444;
+    color: #ff4444;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+.kill-switch-btn:hover { background: rgba(255, 68, 68, 0.08); }
+
+/* ==================== SETTINGS ==================== */
+.settings-input {
+    width: 90px;
+    padding: 0.35rem 0.5rem;
+    border-radius: 6px;
+    border: 1px solid #2a3f5f;
+    background: #0d1830;
+    color: #e8eef7;
+    font-size: 0.85rem;
+}
+
+.settings-hint { font-size: 0.72rem; color: #7090b0; margin: -0.3rem 0 0.8rem 0; }
+
+/* ==================== RISK / WARNINGS ==================== */
+.risk-warning {
+    font-size: 0.78rem;
+    color: #ff4444;
+    background: rgba(255, 68, 68, 0.08);
+    border-left: 2px solid #ff4444;
+    padding: 0.5rem 0.7rem;
+    margin: 0.4rem 0 0.8rem 0;
+}
+
+.risk-list {
+    font-size: 0.82rem;
+    color: #c0d0e8;
+    margin: 0.8rem 0;
+    padding-left: 1.2rem;
+    line-height: 1.6;
+}
+.risk-list strong { color: #fff; }
+
+/* ==================== SPARKLINE ==================== */
+.sparkline-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+.sparkline-wrap svg { display: block; }
+.sparkline-panel {
+    margin: 0.6rem 0 0.8rem 0;
+    padding: 0.5rem 0;
+    border-top: 1px solid rgba(144, 168, 200, 0.15);
+    border-bottom: 1px solid rgba(144, 168, 200, 0.15);
+}
+.sparkline-panel .settings-hint { margin-top: 0.3rem; }
+
+/* ==================== TOAST ==================== */
+.cm-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 0.8rem 1.2rem;
+    border-radius: 8px;
+    color: white;
+    font-size: 0.85rem;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 9999;
+    animation: cm-toast-in 0.25s ease-out;
+}
+@keyframes cm-toast-in {
+    from { transform: translateY(10px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* ==================== FOOTER ==================== */
 footer {
     text-align: center;
     padding: 2rem;
@@ -295,7 +464,16 @@ footer {
     margin-top: 2rem;
 }
 
-/* RESPONSIVE */
+.social-links { margin-top: 0.6rem; }
+.social-links a {
+    color: #0078ff;
+    text-decoration: none;
+    margin: 0 0.6rem;
+    font-size: 0.85rem;
+}
+.social-links a:hover { text-decoration: underline; }
+
+/* ==================== RESPONSIVE ==================== */
 @media (max-width: 900px) {
     #dashboard { grid-template-columns: repeat(2, 1fr); }
     .nav-center { display: none; }
