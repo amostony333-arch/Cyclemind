@@ -198,11 +198,20 @@ async function loadTrending() {
         let html = "";
         data.coins.slice(0, 6).forEach((item, i) => {
             const coin = item.item;
-            html += `<div class="metric"><span class="label">#${i+1} ${coin.name} (${coin.symbol})</span><span class="value">Rank #${coin.market_cap_rank || 'N/A'}</span></div>`;
+            const changeColor = coin.change_24h >= 0 ? '#00a550' : '#ff4444';
+            const changeSign = coin.change_24h >= 0 ? '+' : '';
+            html += `
+                <div class="metric">
+                    <span class="label">#${i+1} ${coin.name}</span>
+                    <span class="value">$${coin.price.toLocaleString()} <span style="color:${changeColor}">${changeSign}${coin.change_24h}%</span></span>
+                </div>
+            `;
         });
         el.innerHTML = html;
     } catch(e) {
         el.innerHTML = `<div class="metric">Unable to load trending data.</div>`;
+    }
+};
     }
 }
 
