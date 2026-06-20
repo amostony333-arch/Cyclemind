@@ -4,7 +4,22 @@ from pydantic import BaseModel
 from bitget_client import BitgetClient
 from config import FRONTEND_ORIGIN
 from regime_engine import compute_regime, integrate_liquidation_proximity, ASSET_CONFIDENCE_THRESHOLDS
-from indicators import parse_candles, calculate_ema, calculate_rsi, calculate_macd_histogram
+from indicators import (
+    parse_candles,
+    calculate_ema,
+    calculate_rsi,
+    calculate_macd_histogram,
+    calculate_sma,
+    calculate_bollinger_bands,
+    find_support_resistance,
+)
+
+import asyncio
+import json
+import os
+import uuid
+from datetime import datetime, timezone, date
+from pathlib import Path
 
 app = FastAPI(title="CycleMind API")
 
@@ -18,6 +33,28 @@ app.add_middleware(
 
 bitget = BitgetClient()
 
+# ==================== CONSTANTS ====================
+
+LEVERAGE_TIERS = [5, 10, 25, 50, 100]
+RISK_PROFILE_TARGETS = {
+    "conservative": {"BTC": 50, "ETH": 25, "SOL": 10, "USDT": 15},
+    "balanced":     {"BTC": 40, "ETH": 30, "SOL": 15, "USDT": 15},
+    "aggressive":   {"BTC": 30, "ETH": 30, "SOL": 30, "USDT": 10},
+}
+
+DEMO_STARTING_BALANCE = 10000.0
+MIN_TRADE_SIZE_USD = 10.0
+MAX_TRADE_SIZE_USD = 1000.0
+DEFAULT_TRADE_SIZE_USD = 250.0
+AUTO_TRADE_COOLDOWN_SECONDS = 900   # 15-min cooldown per coin
+AUTO_TRADE_INTERVAL_SECONDS = 60    # background loop frequency
+DAILY_LOSS_LIMIT_PCT = 10.0         # halt auto-trade if daily drawdown exceeds this
+MAX_POSITION_PCT = 40.0             # max single-asset exposure via auto-trade
+MAX_EQUITY_HISTORY_POINTS = 200
+
+USERS_FILE = Path("users.json")
+
+# ==================== MODELS ====================
 
 class APICredentials(BaseModel):
     api_key: str
@@ -25,12 +62,147 @@ class APICredentials(BaseModel):
     passphrase: str
 
 
+class RebalanceRequest(BaseModel):
+    api_key: str
+    api_secret: str
+    passphrase: str
+    risk_profile: str = "balanced"
+
+
+class EmailSignup(BaseModel):
+    email: str
+    wallet_address: str
+
+
+class DemoTradeRequest(BaseModel):
+    email: str
+    coin: str       # "BTC" | "ETH" | "SOL"
+    side: str       # "buy" | "sell"
+    amount_usd: float
+
+
+class UserSettings(BaseModel):
+    email: str
+    default_trade_size_usd: float | None = None
+    auto_trade_enabled: bool | None = None
+    confirm_risk_acknowledged: bool | None = None   # required True when enabling auto-trade
+
+# ==================== USER STORE HELPERS ====================
+
+def _load_users():
+    if not USERS_FILE.exists():
+        return {}
+    try:
+        return json.loads(USERS_FILE.read_text())
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def _save_users(users):
+    USERS_FILE.write_text(json.dumps(users, indent=2))
+
+
+def _get_user(email: str):
+    users = _load_users()
+    return users.get(email.lower())
+
+
+def _update_user(email: str, data: dict):
+    users = _load_users()
+    key = email.lower()
+    if key not in users:
+        raise HTTPException(status_code=404, detail="User not found")
+    users[key].update(data)
+    _save_users(users)
+    return users[key]
+
+
+def _ensure_user_defaults(user: dict) -> dict:
+    user.setdefault("default_trade_size_usd", DEFAULT_TRADE_SIZE_USD)
+    user.setdefault("auto_trade_enabled", False)
+    user.setdefault("last_auto_trade", {})
+    user.setdefault("kill_switch_active", False)
+    user.setdefault("daily_start_equity", DEMO_STARTING_BALANCE)
+    user.setdefault("daily_start_date", date.today().isoformat())
+    user.setdefault("auto_trade_halted_reason", None)
+    user.setdefault("equity_history", [])   # [{ "t": iso_timestamp, "equity": float }]
+    return user
+
+# ==================== RISK / EQUITY HELPERS ====================
+
+def _compute_equity(user: dict) -> float:
+    """Mark-to-market total equity (cash + positions) using live prices."""
+    coin_map = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT"}
+    equity = user["demo_balance_usdt"]
+    for coin, pos in user.get("demo_positions", {}).items():
+        symbol = coin_map.get(coin)
+        if not symbol:
+            continue
+        ticker = bitget.get_futures_ticker(symbol)
+        try:
+            price = float(ticker["data"][0]["lastPr"])
+        except (KeyError, IndexError, ValueError, TypeError):
+            price = pos["avg_entry"]
+        equity += pos["amount"] * price
+    return equity
+
+
+def _roll_daily_tracking_if_needed(user: dict) -> dict:
+    today = date.today().isoformat()
+    if user.get("daily_start_date") != today:
+        user["daily_start_date"] = today
+        user["daily_start_equity"] = _compute_equity(user)
+        user["equity_history"] = []     # fresh sparkline each day
+    return user
+
+
+def _record_equity_snapshot(email: str, user: dict):
+    """Appends an equity point, capped to MAX_EQUITY_HISTORY_POINTS for today."""
+    equity = _compute_equity(user)
+    history = user.get("equity_history", [])
+    history.append({"t": datetime.now(timezone.utc).isoformat(), "equity": round(equity, 2)})
+    if len(history) > MAX_EQUITY_HISTORY_POINTS:
+        history = history[-MAX_EQUITY_HISTORY_POINTS:]
+    _update_user(email, {"equity_history": history})
+    return history
+
+
+def _check_risk_limits(user: dict, coin: str, side: str, amount_usd: float) -> str | None:
+    """Returns a reason string if a trade should be blocked, else None."""
+    if user.get("kill_switch_active"):
+        return "Kill switch is active. Auto-trading is halted until manually reset."
+
+    user = _roll_daily_tracking_if_needed(user)
+    equity = _compute_equity(user)
+
+    # Daily loss limit
+    daily_pnl_pct = ((equity - user["daily_start_equity"]) / user["daily_start_equity"]) * 100
+    if daily_pnl_pct <= -DAILY_LOSS_LIMIT_PCT:
+        return f"Daily loss limit reached ({daily_pnl_pct:.1f}% ≤ -{DAILY_LOSS_LIMIT_PCT}%). Auto-trading halted for today."
+
+    # Max position cap (buys only)
+    if side == "buy":
+        existing = user.get("demo_positions", {}).get(coin, {"amount": 0.0, "avg_entry": 0.0})
+        coin_map = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT"}
+        ticker = bitget.get_futures_ticker(coin_map[coin])
+        try:
+            price = float(ticker["data"][0]["lastPr"])
+        except (KeyError, IndexError, ValueError, TypeError):
+            price = existing["avg_entry"] or 1.0
+        projected_position_value = (existing["amount"] * price) + amount_usd
+        projected_pct = (projected_position_value / equity) * 100 if equity else 0
+        if projected_pct > MAX_POSITION_PCT:
+            return f"Trade would push {coin} to {projected_pct:.1f}% of portfolio, exceeding the {MAX_POSITION_PCT}% cap."
+
+    return None
+
+# ==================== HEALTH ====================
+
 @app.get("/api/health")
 def health():
     return {"status": "ok", "service": "CycleMind"}
 
-
-# ---------- Live Prices from Bitget ----------
+# ==================== LIVE PRICES ====================
 
 @app.get("/api/prices")
 def get_live_prices():
@@ -42,16 +214,12 @@ def get_live_prices():
         try:
             price = float(ticker["data"][0]["lastPr"])
             change = float(ticker["data"][0].get("change24h", 0)) * 100
-            prices[coin_map[symbol]] = {
-                "usd": price,
-                "usd_24h_change": round(change, 2)
-            }
+            prices[coin_map[symbol]] = {"usd": price, "usd_24h_change": round(change, 2)}
         except (KeyError, IndexError, ValueError, TypeError):
             prices[coin_map[symbol]] = {"usd": 0, "usd_24h_change": 0}
     return prices
 
-
-# ---------- Trending from Bitget (top movers) ----------
+# ==================== TRENDING ====================
 
 @app.get("/api/trending")
 def get_trending():
@@ -70,7 +238,7 @@ def get_trending():
                     "price": price,
                     "change_24h": round(change, 2),
                     "volume": volume,
-                    "market_cap_rank": None
+                    "market_cap_rank": None,
                 }
             })
         except (KeyError, IndexError, ValueError, TypeError):
@@ -78,8 +246,7 @@ def get_trending():
     trending.sort(key=lambda x: abs(x["item"]["change_24h"]), reverse=True)
     return {"coins": trending}
 
-
-# ---------- Public Market Data Routes ----------
+# ==================== PUBLIC MARKET DATA ====================
 
 @app.get("/api/funding-rate/{symbol}")
 def get_funding_rate(symbol: str):
@@ -113,8 +280,7 @@ def get_fear_greed():
         raise HTTPException(status_code=503, detail="Fear & Greed index unavailable")
     return data
 
-
-# ---------- Authenticated Account Routes ----------
+# ==================== AUTHENTICATED ACCOUNT ====================
 
 @app.post("/api/account/spot-balance")
 def get_spot_balance(creds: APICredentials):
@@ -127,11 +293,7 @@ def get_futures_balance(creds: APICredentials):
     client = BitgetClient(creds.api_key, creds.api_secret, creds.passphrase)
     return client.get_futures_account()
 
-
-# ---------- Module: Liquidation Heatmap ----------
-
-LEVERAGE_TIERS = [5, 10, 25, 50, 100]
-
+# ==================== LIQUIDATION HEATMAP ====================
 
 @app.get("/api/liquidation-heatmap/{symbol}")
 def liquidation_heatmap(symbol: str):
@@ -157,8 +319,7 @@ def liquidation_heatmap(symbol: str):
         "clusters": clusters,
     }
 
-
-# ---------- Module: Funding Rate Capture Signal ----------
+# ==================== FUNDING SIGNAL ====================
 
 @app.get("/api/funding-signal/{symbol}")
 def funding_signal(symbol: str):
@@ -187,8 +348,7 @@ def funding_signal(symbol: str):
         "suggested_strategy": suggested_direction,
     }
 
-
-# ---------- Module: Composite Regime Detection ----------
+# ==================== REGIME DETECTION ====================
 
 @app.get("/api/regime/{symbol}")
 def get_regime(symbol: str):
@@ -214,7 +374,9 @@ def get_regime(symbol: str):
         btc_candles_raw = bitget.get_candles("BTCUSDT", granularity="1H", limit=30)
         try:
             btc_candles = parse_candles(btc_candles_raw["data"])
-            btc_dominance_change_pct = ((btc_candles[-1]["close"] - btc_candles[0]["close"]) / btc_candles[0]["close"]) * 100
+            btc_dominance_change_pct = (
+                (btc_candles[-1]["close"] - btc_candles[0]["close"]) / btc_candles[0]["close"]
+            ) * 100
         except (KeyError, TypeError, ValueError, IndexError):
             pass
     result = compute_regime(
@@ -236,15 +398,15 @@ def get_regime(symbol: str):
     }
     try:
         mark_price = float(ticker["data"][0]["lastPr"])
-        clusters = []
-        for leverage in [5, 10, 25, 50, 100]:
-            clusters.append({
-                "leverage": leverage,
-                "long_liquidation_price": round(mark_price * (1 - 1 / leverage), 2),
-                "short_liquidation_price": round(mark_price * (1 + 1 / leverage), 2),
-            })
-        liq_context = integrate_liquidation_proximity(result, mark_price, clusters)
-        response["liquidation_context"] = liq_context
+        clusters = [
+            {
+                "leverage": lev,
+                "long_liquidation_price": round(mark_price * (1 - 1 / lev), 2),
+                "short_liquidation_price": round(mark_price * (1 + 1 / lev), 2),
+            }
+            for lev in LEVERAGE_TIERS
+        ]
+        response["liquidation_context"] = integrate_liquidation_proximity(result, mark_price, clusters)
     except (KeyError, IndexError, ValueError, TypeError):
         response["liquidation_context"] = None
     return response
@@ -261,8 +423,7 @@ def regime_overview():
             overview[symbol] = {"error": e.detail}
     return overview
 
-
-# ---------- Module: Market Overview (no auth needed) ----------
+# ==================== MARKET OVERVIEW ====================
 
 @app.get("/api/market-overview")
 def market_overview():
@@ -288,22 +449,105 @@ def market_overview():
             overview.append({"symbol": symbol, "error": "unavailable"})
     return {"markets": overview}
 
+# ==================== ENTRY / EXIT SIGNALS ====================
 
-# ---------- Module: Portfolio Rebalancer ----------
+@app.get("/api/entry-exit/{symbol}")
+def entry_exit_signal(symbol: str):
+    candles_raw = bitget.get_candles(symbol, granularity="1H", limit=100)
+    daily_raw = bitget.get_candles(symbol, granularity="1D", limit=60)
+    try:
+        candles = parse_candles(candles_raw["data"])
+        daily_candles = parse_candles(daily_raw["data"])
+    except (KeyError, TypeError, ValueError, IndexError):
+        raise HTTPException(status_code=502, detail="Could not parse candle data")
+    if len(candles) < 20 or len(daily_candles) < 50:
+        raise HTTPException(status_code=502, detail="Insufficient candle history")
 
-RISK_PROFILE_TARGETS = {
-    "conservative": {"BTC": 50, "ETH": 25, "SOL": 10, "USDT": 15},
-    "balanced":     {"BTC": 40, "ETH": 30, "SOL": 15, "USDT": 15},
-    "aggressive":   {"BTC": 30, "ETH": 30, "SOL": 30, "USDT": 10},
-}
+    closes_1h = [c["close"] for c in candles]
+    daily_closes = [c["close"] for c in daily_candles]
+    current_price = closes_1h[-1]
+
+    bb = calculate_bollinger_bands(closes_1h, period=20, num_std=2.0)
+    sr = find_support_resistance(candles, lookback=50)
+    sma_20d = calculate_sma(daily_closes, 20)
+    sma_50d = calculate_sma(daily_closes, 50)
+
+    if bb is None or sma_20d is None or sma_50d is None:
+        raise HTTPException(status_code=502, detail="Could not compute indicators")
+
+    score = 0
+    reasons = []
+
+    # Bollinger Band position
+    if current_price <= bb["lower"]:
+        score += 2
+        reasons.append("Price at/below lower Bollinger Band (oversold)")
+    elif current_price >= bb["upper"]:
+        score -= 2
+        reasons.append("Price at/above upper Bollinger Band (overbought)")
+
+    # Daily MA trend
+    if sma_20d > sma_50d:
+        score += 1
+        reasons.append("20D MA above 50D MA (bullish daily trend)")
+    else:
+        score -= 1
+        reasons.append("20D MA below 50D MA (bearish daily trend)")
+
+    if current_price > sma_20d:
+        score += 1
+        reasons.append("Price above 20D moving average")
+    else:
+        score -= 1
+        reasons.append("Price below 20D moving average")
+
+    # Support/resistance proximity
+    near_support = any(abs(current_price - lvl) / lvl * 100 <= 0.75 for lvl in sr["support"])
+    near_resistance = any(abs(current_price - lvl) / lvl * 100 <= 0.75 for lvl in sr["resistance"])
+    if near_support:
+        score += 2
+        reasons.append("Price near key support level")
+    if near_resistance:
+        score -= 2
+        reasons.append("Price near key resistance level")
+
+    if score >= 3:
+        action = "enter_long"
+    elif score <= -3:
+        action = "exit_or_avoid"
+    else:
+        action = "wait"
+
+    take_profit = sr["resistance"][0] if sr["resistance"] else bb["upper"]
+    stop_loss = sr["support"][0] if sr["support"] else bb["lower"]
+
+    return {
+        "symbol": symbol,
+        "current_price": round(current_price, 2),
+        "action": action,
+        "score": score,
+        "reasons": reasons,
+        "bollinger_bands": {k: round(v, 2) if v else v for k, v in bb.items()},
+        "daily_moving_averages": {"sma_20d": round(sma_20d, 2), "sma_50d": round(sma_50d, 2)},
+        "support_resistance": sr,
+        "suggested_take_profit": round(take_profit, 2),
+        "suggested_stop_loss": round(stop_loss, 2),
+        "note": "Suggested levels only. Not financial advice.",
+    }
 
 
-class RebalanceRequest(BaseModel):
-    api_key: str
-    api_secret: str
-    passphrase: str
-    risk_profile: str = "balanced"
+@app.get("/api/entry-exit-overview")
+def entry_exit_overview():
+    symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+    overview = {}
+    for symbol in symbols:
+        try:
+            overview[symbol] = entry_exit_signal(symbol)
+        except HTTPException as e:
+            overview[symbol] = {"error": e.detail}
+    return overview
 
+# ==================== PORTFOLIO REBALANCER ====================
 
 @app.post("/api/rebalance")
 def rebalance_portfolio(req: RebalanceRequest):
@@ -317,9 +561,7 @@ def rebalance_portfolio(req: RebalanceRequest):
     try:
         for asset in balance_data.get("data", []):
             coin = asset.get("coin")
-            available = float(asset.get("available", 0))
-            frozen = float(asset.get("frozen", 0))
-            total = available + frozen
+            total = float(asset.get("available", 0)) + float(asset.get("frozen", 0))
             if total > 0:
                 holdings[coin] = total
     except (ValueError, TypeError):
@@ -330,8 +572,7 @@ def rebalance_portfolio(req: RebalanceRequest):
     for coin in holdings:
         if coin == "USDT":
             continue
-        symbol = f"{coin}USDT"
-        ticker = bitget.get_spot_ticker(symbol)
+        ticker = bitget.get_spot_ticker(f"{coin}USDT")
         try:
             prices[coin] = float(ticker["data"][0]["lastPr"])
         except (KeyError, IndexError, ValueError, TypeError):
@@ -353,9 +594,8 @@ def rebalance_portfolio(req: RebalanceRequest):
     }
     target = dict(RISK_PROFILE_TARGETS[req.risk_profile])
     for coin in ["BTC", "ETH", "SOL"]:
-        symbol = f"{coin}USDT"
         try:
-            regime_result = get_regime(symbol)
+            regime_result = get_regime(f"{coin}USDT")
             regime = regime_result.get("regime", "")
             if "downtrend" in regime and coin in target:
                 shift = 5 if regime == "weak_downtrend" else 8
@@ -371,12 +611,11 @@ def rebalance_portfolio(req: RebalanceRequest):
         if abs(diff_pct) < 1.0:
             continue
         diff_usd = (diff_pct / 100) * total_value_usd
-        action = "buy" if diff_usd > 0 else "sell"
         rebalance_plan.append({
             "asset": coin,
             "current_pct": current_pct,
             "target_pct": target_pct,
-            "action": action,
+            "action": "buy" if diff_usd > 0 else "sell",
             "amount_usd": round(abs(diff_usd), 2),
         })
     return {
@@ -388,6 +627,331 @@ def rebalance_portfolio(req: RebalanceRequest):
         "note": "Suggested plan only. No trades executed.",
     }
 
+# ==================== AUTH: EMAIL SIGNUP ====================
+
+@app.post("/api/auth/email-signup")
+def email_signup(req: EmailSignup):
+    users = _load_users()
+    key = req.email.lower()
+    if key not in users:
+        users[key] = {
+            "email": req.email,
+            "wallet_address": req.wallet_address,
+            "demo_balance_usdt": DEMO_STARTING_BALANCE,
+            "demo_positions": {},       # { "BTC": {"amount": 0.05, "avg_entry": 67000} }
+            "demo_trade_log": [],
+            "bitget_linked": False,
+        }
+        _save_users(users)
+    return users[key]
+
+# ==================== DEMO ACCOUNT ====================
+
+@app.get("/api/demo/account/{email}")
+def get_demo_account(email: str):
+    user = _get_user(email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    coin_map = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT"}
+    positions_value = 0.0
+    positions_detail = {}
+    for coin, pos in user.get("demo_positions", {}).items():
+        symbol = coin_map.get(coin)
+        if not symbol:
+            continue
+        ticker = bitget.get_futures_ticker(symbol)
+        try:
+            price = float(ticker["data"][0]["lastPr"])
+        except (KeyError, IndexError, ValueError, TypeError):
+            price = pos["avg_entry"]
+        value = pos["amount"] * price
+        pnl = value - (pos["amount"] * pos["avg_entry"])
+        pnl_pct = (pnl / (pos["amount"] * pos["avg_entry"]) * 100) if pos["avg_entry"] else 0
+        positions_value += value
+        positions_detail[coin] = {
+            "amount": pos["amount"],
+            "avg_entry": pos["avg_entry"],
+            "current_price": price,
+            "value_usd": round(value, 2),
+            "pnl_usd": round(pnl, 2),
+            "pnl_pct": round(pnl_pct, 2),
+        }
+    total_equity = user["demo_balance_usdt"] + positions_value
+    return {
+        "email": user["email"],
+        "cash_usdt": round(user["demo_balance_usdt"], 2),
+        "positions": positions_detail,
+        "total_equity_usd": round(total_equity, 2),
+        "starting_balance": DEMO_STARTING_BALANCE,
+        "total_return_pct": round((total_equity - DEMO_STARTING_BALANCE) / DEMO_STARTING_BALANCE * 100, 2),
+        "trade_log": user.get("demo_trade_log", [])[-20:],
+        "is_demo": True,
+    }
+
+
+@app.post("/api/demo/trade")
+def execute_demo_trade(req: DemoTradeRequest):
+    user = _get_user(req.email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if req.coin not in ("BTC", "ETH", "SOL"):
+        raise HTTPException(status_code=400, detail="Unsupported coin")
+    if req.amount_usd <= 0:
+        raise HTTPException(status_code=400, detail="amount_usd must be positive")
+
+    symbol = f"{req.coin}USDT"
+    ticker = bitget.get_futures_ticker(symbol)
+    try:
+        price = float(ticker["data"][0]["lastPr"])
+    except (KeyError, IndexError, ValueError, TypeError):
+        raise HTTPException(status_code=502, detail="Could not fetch live price")
+
+    positions = user.setdefault("demo_positions", {})
+    trade_log = user.setdefault("demo_trade_log", [])
+
+    if req.side == "buy":
+        if req.amount_usd > user["demo_balance_usdt"]:
+            raise HTTPException(status_code=400, detail="Insufficient demo balance")
+        qty = req.amount_usd / price
+        existing = positions.get(req.coin, {"amount": 0.0, "avg_entry": price})
+        new_amount = existing["amount"] + qty
+        new_avg_entry = (
+            (existing["amount"] * existing["avg_entry"] + qty * price) / new_amount
+            if new_amount > 0 else price
+        )
+        positions[req.coin] = {"amount": new_amount, "avg_entry": new_avg_entry}
+        user["demo_balance_usdt"] -= req.amount_usd
+
+    elif req.side == "sell":
+        existing = positions.get(req.coin)
+        if not existing or existing["amount"] <= 0:
+            raise HTTPException(status_code=400, detail=f"No {req.coin} position to sell")
+        qty = min(req.amount_usd / price, existing["amount"])
+        proceeds = qty * price
+        existing["amount"] -= qty
+        if existing["amount"] <= 1e-9:
+            del positions[req.coin]
+        user["demo_balance_usdt"] += proceeds
+    else:
+        raise HTTPException(status_code=400, detail="side must be 'buy' or 'sell'")
+
+    trade_log.append({
+        "id": str(uuid.uuid4())[:8],
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "coin": req.coin,
+        "side": req.side,
+        "price": round(price, 2),
+        "amount_usd": round(req.amount_usd, 2),
+    })
+
+    _update_user(req.email, {
+        "demo_balance_usdt": user["demo_balance_usdt"],
+        "demo_positions": positions,
+        "demo_trade_log": trade_log,
+    })
+
+    # Record equity snapshot after every trade
+    updated_user = _get_user(req.email)
+    _record_equity_snapshot(req.email, updated_user)
+
+    return {
+        "status": "ok",
+        "executed_price": round(price, 2),
+        "new_cash_balance": round(user["demo_balance_usdt"], 2),
+    }
+
+
+@app.post("/api/demo/reset/{email}")
+def reset_demo_account(email: str):
+    user = _get_user(email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    _update_user(email, {
+        "demo_balance_usdt": DEMO_STARTING_BALANCE,
+        "demo_positions": {},
+        "demo_trade_log": [],
+    })
+    return {"status": "ok", "message": "Demo account reset."}
+
+# ==================== SETTINGS ====================
+
+@app.get("/api/settings/{email}")
+def get_settings(email: str):
+    user = _get_user(email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user = _ensure_user_defaults(user)
+    return {
+        "email": user["email"],
+        "default_trade_size_usd": user["default_trade_size_usd"],
+        "auto_trade_enabled": user["auto_trade_enabled"],
+        "min_trade_size_usd": MIN_TRADE_SIZE_USD,
+        "max_trade_size_usd": MAX_TRADE_SIZE_USD,
+    }
+
+
+@app.post("/api/settings")
+def update_settings(req: UserSettings):
+    user = _get_user(req.email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user = _ensure_user_defaults(user)
+    updates = {}
+    if req.default_trade_size_usd is not None:
+        if not (MIN_TRADE_SIZE_USD <= req.default_trade_size_usd <= MAX_TRADE_SIZE_USD):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Trade size must be between ${MIN_TRADE_SIZE_USD} and ${MAX_TRADE_SIZE_USD}",
+            )
+        updates["default_trade_size_usd"] = req.default_trade_size_usd
+    if req.auto_trade_enabled is not None:
+        if req.auto_trade_enabled:
+            if user.get("kill_switch_active"):
+                raise HTTPException(status_code=400, detail="Reset the kill switch before re-enabling auto-trading.")
+            if not req.confirm_risk_acknowledged:
+                raise HTTPException(status_code=400, detail="Explicit risk acknowledgment is required to enable auto-trading.")
+            updates["auto_trade_halted_reason"] = None
+        updates["auto_trade_enabled"] = req.auto_trade_enabled
+    _update_user(req.email, updates)
+    return {"status": "ok", **updates}
+
+# ==================== RISK STATUS ====================
+
+@app.get("/api/risk-status/{email}")
+def get_risk_status(email: str):
+    user = _get_user(email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user = _ensure_user_defaults(user)
+    user = _roll_daily_tracking_if_needed(user)
+    equity = _compute_equity(user)
+    daily_pnl_pct = (
+        ((equity - user["daily_start_equity"]) / user["daily_start_equity"]) * 100
+        if user["daily_start_equity"] else 0
+    )
+    return {
+        "kill_switch_active": user["kill_switch_active"],
+        "auto_trade_enabled": user["auto_trade_enabled"],
+        "auto_trade_halted_reason": user.get("auto_trade_halted_reason"),
+        "daily_pnl_pct": round(daily_pnl_pct, 2),
+        "daily_loss_limit_pct": DAILY_LOSS_LIMIT_PCT,
+        "max_position_pct": MAX_POSITION_PCT,
+        "last_auto_trade": user.get("last_auto_trade", {}),
+    }
+
+# ==================== KILL SWITCH ====================
+
+@app.post("/api/kill-switch/{email}")
+def trigger_kill_switch(email: str):
+    user = _get_user(email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    _update_user(email, {
+        "kill_switch_active": True,
+        "auto_trade_enabled": False,
+        "auto_trade_halted_reason": "Manual kill switch triggered.",
+    })
+    return {"status": "ok", "message": "Kill switch activated. Auto-trading halted."}
+
+
+@app.post("/api/kill-switch/{email}/reset")
+def reset_kill_switch(email: str):
+    user = _get_user(email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    _update_user(email, {
+        "kill_switch_active": False,
+        "auto_trade_halted_reason": None,
+    })
+    return {"status": "ok", "message": "Kill switch reset. You may re-enable auto-trading."}
+
+# ==================== EQUITY HISTORY ====================
+
+@app.get("/api/equity-history/{email}")
+def get_equity_history(email: str):
+    user = _get_user(email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user = _ensure_user_defaults(user)
+    user = _roll_daily_tracking_if_needed(user)
+    history = user.get("equity_history", [])
+    if not history:
+        history = _record_equity_snapshot(email, user)
+    return {
+        "points": history,
+        "daily_start_equity": round(user["daily_start_equity"], 2),
+        "daily_loss_limit_pct": DAILY_LOSS_LIMIT_PCT,
+    }
+
+# ==================== AUTO-TRADE BACKGROUND LOOP ====================
+
+async def _run_auto_trade_cycle():
+    users = _load_users()
+    overview = entry_exit_overview()
+
+    for email, user in users.items():
+        user = _ensure_user_defaults(user)
+        if not user.get("auto_trade_enabled") or user.get("kill_switch_active"):
+            continue
+
+        trade_size = user["default_trade_size_usd"]
+        last_trades = user.get("last_auto_trade", {})
+        now = datetime.now(timezone.utc)
+
+        for symbol, signal in overview.items():
+            if "error" in signal:
+                continue
+            coin = symbol.replace("USDT", "")
+            action = signal.get("action")
+            if action not in ("enter_long", "exit_or_avoid"):
+                continue
+
+            last_time_str = last_trades.get(coin)
+            if last_time_str:
+                last_time = datetime.fromisoformat(last_time_str)
+                if (now - last_time).total_seconds() < AUTO_TRADE_COOLDOWN_SECONDS:
+                    continue
+
+            side = "buy" if action == "enter_long" else "sell"
+
+            if side == "sell":
+                positions = user.get("demo_positions", {})
+                if coin not in positions or positions[coin]["amount"] <= 0:
+                    continue
+
+            block_reason = _check_risk_limits(user, coin, side, trade_size)
+            if block_reason:
+                _update_user(email, {
+                    "auto_trade_enabled": False,
+                    "auto_trade_halted_reason": block_reason,
+                })
+                break   # stop processing this user this cycle
+
+            try:
+                execute_demo_trade(DemoTradeRequest(email=email, coin=coin, side=side, amount_usd=trade_size))
+                last_trades[coin] = now.isoformat()
+                _update_user(email, {"last_auto_trade": last_trades})
+                # Record equity snapshot after each auto-trade
+                updated_user = _get_user(email)
+                _record_equity_snapshot(email, updated_user)
+            except HTTPException:
+                continue
+
+
+async def _auto_trade_loop():
+    while True:
+        try:
+            await _run_auto_trade_cycle()
+        except Exception as e:
+            print(f"Auto-trade cycle error: {e}")
+        await asyncio.sleep(AUTO_TRADE_INTERVAL_SECONDS)
+
+
+@app.on_event("startup")
+async def start_auto_trade_loop():
+    asyncio.create_task(_auto_trade_loop())
+
+# ==================== ENTRYPOINT ====================
 
 if __name__ == "__main__":
     import uvicorn
