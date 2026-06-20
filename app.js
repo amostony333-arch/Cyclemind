@@ -320,7 +320,117 @@ window.addEventListener("DOMContentLoaded", () => {
         showConnectedState();
     }
     loadAllData();
-});
+// ---------- Module: Live Prices ----------
+async function loadLivePrices() {
+    const el = document.getElementById("prices-content");
+    try {
+        const res = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd&include_24hr_change=true");
+        const data = await res.json();
+        el.innerHTML = `
+            <div class="metric">
+                <span class="label">BTC</span>
+                <span class="value">$${data.bitcoin.usd.toLocaleString()} <span style="color:${data.bitcoin.usd_24h_change > 0 ? '#4ade80' : '#ff4444'}">${data.bitcoin.usd_24h_change.toFixed(2)}%</span></span>
+            </div>
+            <div class="metric">
+                <span class="label">ETH</span>
+                <span class="value">$${data.ethereum.usd.toLocaleString()} <span style="color:${data.ethereum.usd_24h_change > 0 ? '#4ade80' : '#ff4444'}">${data.ethereum.usd_24h_change.toFixed(2)}%</span></span>
+            </div>
+            <div class="metric">
+                <span class="label">SOL</span>
+                <span class="value">$${data.solana.usd.toLocaleString()} <span style="color:${data.solana.usd_24h_change > 0 ? '#4ade80' : '#ff4444'}">${data.solana.usd_24h_change.toFixed(2)}%</span></span>
+            </div>
+        `;
+    } catch(e) {
+        el.innerHTML = `<div class="metric">Unable to load prices.</div>`;
+    }
+}
+
+// ---------- Module: Trending ----------
+async function loadTrending() {
+    const el = document.getElementById("trending-content");
+    try {
+        const res = await fetch("https://api.coingecko.com/api/v3/search/trending");
+        const data = await res.json();
+        let html = "";
+        data.coins.slice(0, 6).forEach((item, i) => {
+            const coin = item.item;
+            html += `
+                <div class="metric">
+                    <span class="label">#${i+1} ${coin.name} (${coin.symbol})</span>
+                    <span class="value">Rank #${coin.market_cap_rank || 'N/A'}</span>
+                </div>
+            `;
+        });
+        el.innerHTML = html;
+    } catch(e) {
+        el.innerHTML = `<div class="metric">Unable to load trending data.</div>`;
+    }
+}
+
+// ---------- Module: Portfolio Viewer ----------
+async function loadPortfolioViewer() {
+    const el = document.getElementById("portfolio-content");
+    if (!userCredentials) {
+        el.innerHTML = `
+            <div class="metric">
+                <span class="label">Status</span>
+                <span class="value">Not Connected</span>
+            </div>
+            <p style="margin-top:0.8rem;font-size:0.8rem;color:#888;">Connect your Bitget account to view your portfolio.</p>
+        `;
+        return;
+    }
+    el.innerHTML = `<div class="loading">Fetching portfolio...</div>`;
+    try {
+        const res = await fetch(`${API_BASE}/account/spot-balance`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                api_key: userCredentials.api_key,
+                api_secret: userCredentials.api_secret,
+                passphrase: userCredentials.passphrase,
+            }),
+        });
+        const data = await res.json();
+        const assets = (data.data || []).filter(a => parseFloat(a.available) + parseFloat(a.frozen) > 0);
+        if (!assets.length) {
+            el.innerHTML = `<div class="metric"><span class="label">No assets found.</span></div>`;
+            return;
+        }
+        let html = "";
+        assets.forEach(a => {
+            const total = (parseFloat(a.available) + parseFloat(a.frozen)).toFixed(4);
+            html += `
+                <div class="metric">
+                    <span class="label">${a.coin}</span>
+                    <span class="value">${total}</span>
+                </div>
+            `;
+        });
+
+        // Trade suggestions based on regime
+        const overview = await fetchRegimeOverview();
+        html += `<p style="margin-top:1rem;font-size:0.8rem;color:#888;">AI Suggestions based on current regime:</p>`;
+        ["BTCUSDT","ETHUSDT","SOLUSDT"].forEach(sym => {
+            const r = overview?.[sym];
+            if (!r || r.error) return;
+            const coin = sym.replace("USDT","");
+            let suggestion = "Hold — wait for clearer signal";
+            if (r.meets_threshold) {
+                suggestion = r.regime.includes("downtrend") ? `⚠️ Reduce ${coin} exposure` : `✅ Consider adding ${coin}`;
+            }
+            html += `
+                <div class="metric">
+                    <span class="label">${coin}</span>
+                    <span class="value">${suggestion}</span>
+                </div>
+            `;
+        });
+        el.innerHTML = html;
+    } catch(e) {
+        el.innerHTML = `<div class="metric" style="color:#ff4444;">Error loading portfolio.</div>`;
+    }
+}});
 
 // Refresh every 30 seconds
 setInterval(loadAllData, 30000);
