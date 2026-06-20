@@ -19,6 +19,7 @@
         <div id="auth-section">
             <button id="login-btn" onclick="showLoginModal()">Connect Bitget</button>
             <span id="connected-badge" style="display:none;" class="badge-connected">● Connected</span>
+            <button id="logout-btn" style="display:none;" onclick="logoutUser()">Log Out</button>
         </div>
     </nav>
 
@@ -77,6 +78,14 @@
             <div id="trending-content" class="loading">Loading...</div>
         </div>
 
+        <div class="module full-width" id="entry-exit-module">
+            <div class="module-header">
+                <span class="module-icon">🎯</span>
+                <h2>Entry / Exit Signals</h2>
+            </div>
+            <div id="entry-exit-content" class="loading">Loading...</div>
+        </div>
+
         <div class="module full-width" id="portfolio-module">
             <div class="module-header">
                 <span class="module-icon">💼</span>
@@ -93,29 +102,123 @@
             <div id="rebalancer-content" class="loading">Loading...</div>
         </div>
 
+        <div class="module full-width" id="demo-trading-module" style="display:none;">
+            <div class="module-header">
+                <span class="module-icon">🧪</span>
+                <h2>Demo Trading (Simulated Funds)</h2>
+            </div>
+            <div id="demo-trading-content" class="loading">Loading...</div>
+        </div>
+
+        <div class="module" id="settings-module" style="display:none;">
+            <div class="module-header">
+                <span class="module-icon">⚙️</span>
+                <h2>Trading Settings</h2>
+            </div>
+            <div id="settings-content" class="loading">Loading...</div>
+        </div>
+
     </main>
 
+    <button id="kill-switch-btn" class="kill-switch-btn" onclick="confirmKillSwitch()">Emergency Stop</button>
+
+    <!-- Login / Connect Modal -->
     <div id="login-modal" class="modal" style="display:none;">
         <div class="modal-content">
             <span class="close" onclick="closeLoginModal()">&times;</span>
-            <h2>Connect Bitget Account</h2>
-            <p class="modal-subtext">Your API keys are never stored on our servers. Read-only access recommended.</p>
-            <form id="login-form">
-                <input type="text" id="api-key" placeholder="API Key" required>
-                <input type="text" id="api-secret" placeholder="API Secret" required>
-                <input type="text" id="passphrase" placeholder="Passphrase" required>
-                <select id="risk-profile">
-                    <option value="conservative">Conservative</option>
-                    <option value="balanced" selected>Balanced</option>
-                    <option value="aggressive">Aggressive</option>
-                </select>
-                <button type="submit">Connect Account</button>
-            </form>
+
+            <div class="login-tabs">
+                <button class="tab-btn active" id="tab-bitget" onclick="switchLoginTab('bitget')">Connect Bitget</button>
+                <button class="tab-btn" id="tab-email" onclick="switchLoginTab('email')">Sign in with Email</button>
+            </div>
+
+            <div id="bitget-tab-content">
+                <h2>Connect Bitget Account</h2>
+                <p class="modal-subtext">Your API keys are never stored on our servers. Read-only access recommended.</p>
+                <form id="login-form">
+                    <input type="text" id="api-key" placeholder="API Key" required>
+                    <input type="text" id="api-secret" placeholder="API Secret" required>
+                    <input type="text" id="passphrase" placeholder="Passphrase" required>
+                    <select id="risk-profile">
+                        <option value="conservative">Conservative</option>
+                        <option value="balanced" selected>Balanced</option>
+                        <option value="aggressive">Aggressive</option>
+                    </select>
+                    <button type="submit">Connect Account</button>
+                </form>
+            </div>
+
+            <div id="email-tab-content" style="display:none;">
+                <h2>Sign in with Email</h2>
+                <p class="modal-subtext">We'll generate a non-custodial wallet in your browser. Your private key never touches our servers — you alone control it.</p>
+                <form id="email-login-form">
+                    <input type="email" id="email-address" placeholder="you@example.com" required>
+                    <button type="submit">Create Wallet & Continue</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wallet Reveal Modal -->
+    <div id="wallet-reveal-modal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <h2>⚠️ Save Your Wallet</h2>
+            <p class="modal-subtext" style="color:#ff4444;font-weight:600;">
+                This is the only time you'll see your private key and recovery phrase. We do not store it.
+                If you lose it, we cannot recover it for you.
+            </p>
+            <div class="wallet-field">
+                <label>Wallet Address (public, safe to share)</label>
+                <code id="wallet-address-display"></code>
+            </div>
+            <div class="wallet-field">
+                <label>Recovery Phrase (SECRET — never share this)</label>
+                <code id="wallet-mnemonic-display"></code>
+            </div>
+            <div class="wallet-field">
+                <label>Private Key (SECRET — never share this)</label>
+                <code id="wallet-privkey-display"></code>
+            </div>
+            <label style="display:flex;align-items:center;gap:0.5rem;margin-top:1rem;font-size:0.85rem;">
+                <input type="checkbox" id="confirm-saved-checkbox">
+                I've saved my recovery phrase and private key somewhere safe
+            </label>
+            <button id="confirm-wallet-btn" disabled onclick="confirmWalletSaved()">Continue to Dashboard</button>
+        </div>
+    </div>
+
+    <!-- Auto-Trade Confirmation Modal -->
+    <div id="auto-trade-confirm-modal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <h2>Enable Auto-Trading</h2>
+            <p class="modal-subtext">
+                CycleMind will automatically execute demo trades on your behalf when entry/exit signals fire,
+                subject to the following limits:
+            </p>
+            <ul class="risk-list">
+                <li>Daily loss limit: <strong>10%</strong> of starting equity — auto-trading halts automatically if reached</li>
+                <li>Max position size: <strong>40%</strong> of portfolio per asset</li>
+                <li>15-minute cooldown per asset between trades</li>
+                <li>You can disable auto-trading or trigger the kill switch at any time</li>
+            </ul>
+            <p class="modal-subtext" style="color:#f59e0b;">This applies to your demo account. No real funds are involved.</p>
+            <label style="display:flex;align-items:center;gap:0.5rem;margin-top:1rem;font-size:0.85rem;">
+                <input type="checkbox" id="risk-ack-checkbox">
+                I understand and accept these terms
+            </label>
+            <div style="display:flex;gap:0.6rem;margin-top:1rem;">
+                <button id="confirm-autotrade-btn" disabled onclick="confirmEnableAutoTrade()">Enable Auto-Trading</button>
+                <button onclick="closeAutoTradeConfirm()" style="background:transparent;border:1px solid #4a6fa5;">Cancel</button>
+            </div>
         </div>
     </div>
 
     <footer>
         <p>© 2026 CycleMind · AI-powered market regime analysis · Not financial advice</p>
+        <div class="social-links">
+            <a href="https://x.com/cyclemindarc" target="_blank" rel="noopener noreferrer">𝕏 @cyclemindarc</a>
+            <a href="https://t.me/defitony0x" target="_blank" rel="noopener noreferrer">Telegram: @defitony0x</a>
+        </div>
     </footer>
 
     <script src="app.js"></script>
