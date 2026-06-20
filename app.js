@@ -1,8 +1,6 @@
 // CycleMind Frontend Logic
 // Change this to your deployed backend URL when going live
-const API_BASE = window.location.hostname === "localhost" 
-    ? "http://localhost:8000/api" 
-    : "https://your-backend-url.up.railway.app/api";
+const API_BASE = "https://cyclemind-production.up.railway.app";
 
 let userCredentials = null;
 
