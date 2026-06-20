@@ -18,6 +18,8 @@ import asyncio
 import json
 import os
 import uuid
+import secrets
+import requests
 from datetime import datetime, timezone, date
 from pathlib import Path
 
@@ -53,6 +55,10 @@ MAX_POSITION_PCT = 40.0             # max single-asset exposure via auto-trade
 MAX_EQUITY_HISTORY_POINTS = 200
 
 USERS_FILE = Path("users.json")
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+MAGIC_LINKS_FILE = Path("magic_links.json")
+MAGIC_LINK_EXPIRY_MINUTES = 15
+FRONTEND_URL = "https://cyclemind.vercel.app"
 
 # ==================== MODELS ====================
 
@@ -100,6 +106,19 @@ def _load_users():
 
 def _save_users(users):
     USERS_FILE.write_text(json.dumps(users, indent=2))
+
+
+def _load_links():
+    if not MAGIC_LINKS_FILE.exists():
+        return {}
+    try:
+        return json.loads(MAGIC_LINKS_FILE.read_text())
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def _save_links(links):
+    MAGIC_LINKS_FILE.write_text(json.dumps(links, indent=2))
 
 
 def _get_user(email: str):
@@ -644,6 +663,65 @@ def email_signup(req: EmailSignup):
         }
         _save_users(users)
     return users[key]
+
+# ==================== AUTH: MAGIC LINK ====================
+
+class MagicLinkRequest(BaseModel):
+    email: str
+
+
+@app.post("/api/auth/magic-link/request")
+def request_magic_link(req: MagicLinkRequest):
+    token = secrets.token_urlsafe(32)
+    links = _load_links()
+    links[token] = {
+        "email": req.email.lower(),
+        "expires_at": (datetime.now(timezone.utc).timestamp() + MAGIC_LINK_EXPIRY_MINUTES * 60),
+        "used": False,
+    }
+    _save_links(links)
+
+    link_url = f"{FRONTEND_URL}/?magic_token={token}"
+    resp = requests.post(
+        "https://api.resend.com/emails",
+        headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
+        json={
+            "from": "CycleMind <onboarding@resend.dev>",
+            "to": [req.email],
+            "subject": "Your CycleMind demo login link",
+            "html": f"<p>Click below to access your CycleMind demo account:</p><p><a href='{link_url}'>Sign in to CycleMind</a></p><p>This link expires in {MAGIC_LINK_EXPIRY_MINUTES} minutes.</p>",
+        },
+    )
+    if resp.status_code >= 400:
+        raise HTTPException(status_code=502, detail="Could not send email")
+    return {"status": "sent"}
+
+
+@app.get("/api/auth/magic-link/verify/{token}")
+def verify_magic_link(token: str):
+    links = _load_links()
+    record = links.get(token)
+    if not record or record["used"]:
+        raise HTTPException(status_code=400, detail="Invalid or already-used link")
+    if datetime.now(timezone.utc).timestamp() > record["expires_at"]:
+        raise HTTPException(status_code=400, detail="Link expired — request a new one")
+
+    record["used"] = True
+    links[token] = record
+    _save_links(links)
+
+    email = record["email"]
+    users = _load_users()
+    if email not in users:
+        users[email] = {
+            "email": email,
+            "demo_balance_usdt": DEMO_STARTING_BALANCE,
+            "demo_positions": {},
+            "demo_trade_log": [],
+            "bitget_linked": False,
+        }
+        _save_users(users)
+    return {"email": email}
 
 # ==================== DEMO ACCOUNT ====================
 
