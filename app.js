@@ -25,6 +25,7 @@ function showConnectedState() {
     document.getElementById("login-btn").style.display = "none";
     document.getElementById("connected-badge").style.display = "inline";
     document.getElementById("logout-btn").style.display = "inline-block";
+    hideEmailCTA();
 }
 
 function logoutUser() {
@@ -58,24 +59,57 @@ document.getElementById("login-form").addEventListener("submit", (e) => {
     loadRebalancerModule();
 });
 
-// Email / magic link login
+// Shared magic link sender — used by both the modal form and the hero CTA form
+async function sendMagicLink(email) {
+    const res = await fetch(`${API_BASE}/auth/magic-link/request`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+    });
+    if (!res.ok) throw new Error("Could not send link");
+}
+
+function hideEmailCTA() {
+    const cta = document.getElementById("email-cta");
+    if (cta) cta.style.display = "none";
+}
+
+// Email / magic link login (modal version)
 document.getElementById("email-login-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const email = document.getElementById("email-address").value.trim();
     if (!email) return;
     try {
-        const res = await fetch(`${API_BASE}/auth/magic-link/request`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email }),
-        });
-        if (!res.ok) throw new Error("Could not send link");
+        await sendMagicLink(email);
         document.getElementById("email-tab-content").innerHTML =
             `<h2>Check your inbox</h2><p class="modal-subtext">We sent a sign-in link to ${email}. Click it to enter your demo account.</p>`;
     } catch (err) {
         alert("Could not send sign-in link — please try again.");
     }
 });
+
+// Email / magic link login (hero CTA version — front and center on the page)
+const heroEmailForm = document.getElementById("hero-email-form");
+if (heroEmailForm) {
+    heroEmailForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const emailInput = document.getElementById("hero-email-address");
+        const statusEl = document.getElementById("hero-email-status");
+        const email = emailInput.value.trim();
+        if (!email) return;
+        statusEl.textContent = "Sending...";
+        statusEl.style.color = "#90a8c8";
+        try {
+            await sendMagicLink(email);
+            statusEl.textContent = `✅ Check your inbox — we sent a sign-in link to ${email}.`;
+            statusEl.style.color = "#00a550";
+            emailInput.value = "";
+        } catch (err) {
+            statusEl.textContent = "❌ Could not send link — please try again.";
+            statusEl.style.color = "#ff4444";
+        }
+    });
+}
 
 document.getElementById("confirm-saved-checkbox").addEventListener("change", (e) => {
     document.getElementById("confirm-wallet-btn").disabled = !e.target.checked;
