@@ -5,81 +5,117 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CycleMind — AI Market Regime Trading Agent</title>
     <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <nav class="navbar">
-        <h1>CYCLEMIND</h1>
+        <div class="nav-brand">
+            <div class="logo">CM</div>
+            <span class="brand-name">CycleMind</span>
+        </div>
+        <div class="nav-center" id="ticker-bar">
+            <span>BTC: -- | ETH: -- | SOL: -- | Regime: SCANNING...</span>
+        </div>
         <div id="auth-section">
-            <button id="login-btn" onclick="showLoginModal()">Connect Bitget Account</button>
+            <button id="login-btn" onclick="showLoginModal()">Connect Bitget</button>
             <span id="connected-badge" style="display:none;" class="badge-connected">● Connected</span>
         </div>
     </nav>
 
-    <div class="ticker-bar" id="ticker-bar">
-        <span>BTC: -- | ETH: -- | SOL: -- | Regime: SCANNING...</span>
-    </div>
+    <header class="hero">
+        <h1>AI-Powered Market Intelligence</h1>
+        <p>Real-time regime detection, funding analysis, and portfolio insights for BTC, ETH & SOL</p>
+    </header>
 
     <main id="dashboard">
-        <div class="module" id="regime-module" style="grid-column: span 2;">
-            <h2>🧠 Market Regime Detection</h2>
+
+        <div class="module full-width" id="regime-module">
+            <div class="module-header">
+                <span class="module-icon">🧠</span>
+                <h2>Market Regime Detection</h2>
+            </div>
             <div id="regime-content" class="loading">Loading...</div>
         </div>
 
+        <div class="module" id="prices-module">
+            <div class="module-header">
+                <span class="module-icon">💰</span>
+                <h2>Live Prices</h2>
+            </div>
+            <div id="prices-content" class="loading">Loading...</div>
+        </div>
+
         <div class="module" id="dca-module">
-            <h2>📊 Signal-Based DCA</h2>
+            <div class="module-header">
+                <span class="module-icon">📊</span>
+                <h2>Signal-Based DCA</h2>
+            </div>
             <div id="dca-content" class="loading">Loading...</div>
         </div>
 
         <div class="module" id="liquidation-module">
-            <h2>🔥 Liquidation Heatmap</h2>
+            <div class="module-header">
+                <span class="module-icon">🔥</span>
+                <h2>Liquidation Heatmap</h2>
+            </div>
             <div id="liquidation-content" class="loading">Loading...</div>
         </div>
 
         <div class="module" id="funding-module">
-            <h2>⚡ Funding Rate Capture</h2>
+            <div class="module-header">
+                <span class="module-icon">⚡</span>
+                <h2>Funding Rate Capture</h2>
+            </div>
             <div id="funding-content" class="loading">Loading...</div>
         </div>
 
-        <div class="module" id="rebalancer-module">
-            <h2>⚖️ Portfolio Rebalancer</h2>
+        <div class="module" id="trending-module">
+            <div class="module-header">
+                <span class="module-icon">🔥</span>
+                <h2>Trending on CoinGecko</h2>
+            </div>
+            <div id="trending-content" class="loading">Loading...</div>
+        </div>
+
+        <div class="module full-width" id="portfolio-module">
+            <div class="module-header">
+                <span class="module-icon">💼</span>
+                <h2>Portfolio & Trade Suggestions</h2>
+            </div>
+            <div id="portfolio-content" class="loading">Loading...</div>
+        </div>
+
+        <div class="module full-width" id="rebalancer-module">
+            <div class="module-header">
+                <span class="module-icon">⚖️</span>
+                <h2>Portfolio Rebalancer</h2>
+            </div>
             <div id="rebalancer-content" class="loading">Loading...</div>
         </div>
-    <div class="module" id="prices-module">
-    <h2>💰 Live Prices</h2>
-    <div id="prices-content" class="loading">Loading...</div>
-</div>
 
-<div class="module" id="trending-module">
-    <h2>🐦 Trending on CoinGecko</h2>
-    <div id="trending-content" class="loading">Loading...</div>
-</div>
-
-<div class="module" id="portfolio-module" style="grid-column: span 2;">
-    <h2>💼 Portfolio & Trade Suggestions</h2>
-    <div id="portfolio-content" class="loading">Loading...</div>
-</div></main>
+    </main>
 
     <div id="login-modal" class="modal" style="display:none;">
         <div class="modal-content">
             <span class="close" onclick="closeLoginModal()">&times;</span>
             <h2>Connect Bitget Account</h2>
-            <p class="modal-subtext">Your API keys are encrypted and never leave your control. Read-only access is recommended unless you intend to execute trades.</p>
+            <p class="modal-subtext">Your API keys are never stored on our servers. Read-only access recommended.</p>
             <form id="login-form">
                 <input type="text" id="api-key" placeholder="API Key" required>
                 <input type="text" id="api-secret" placeholder="API Secret" required>
                 <input type="text" id="passphrase" placeholder="Passphrase" required>
-                <select id="risk-profile" style="width:100%; padding:0.8rem; margin-bottom:1rem; background:#0a0e27; border:1px solid #333; color:#e0e0e0; border-radius:4px; font-family:inherit;">
+                <select id="risk-profile">
                     <option value="conservative">Conservative</option>
                     <option value="balanced" selected>Balanced</option>
                     <option value="aggressive">Aggressive</option>
                 </select>
-                <button type="submit">Connect</button>
+                <button type="submit">Connect Account</button>
             </form>
         </div>
     </div>
 
     <footer>
-        <p>CycleMind reads market regimes across BTC, ETH, and SOL — built on Bitget. Not financial advice.</p>
+        <p>© 2026 CycleMind · AI-powered market regime analysis · Not financial advice</p>
     </footer>
 
     <script src="app.js"></script>
