@@ -324,7 +324,12 @@ window.addEventListener("DOMContentLoaded", () => {
 async function loadLivePrices() {
     const el = document.getElementById("prices-content");
     try {
-        const res = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd&include_24hr_change=true");
+        const res = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd&include_24hr_change=true", {
+    headers: {
+        "Accept": "application/json",
+        "x-cg-demo-api-key": "CG-demo"
+    }
+});
         const data = await res.json();
         el.innerHTML = `
             <div class="metric">
