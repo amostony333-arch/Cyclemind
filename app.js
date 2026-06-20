@@ -300,14 +300,6 @@ async function loadRegimePanel() {
 
 // ---------- Init ----------
 async function loadAllData() {
-    console.log("loadAllData called");
-    try {
-        const test = await fetchJSON("/fear-greed");
-        console.log("fear-greed result:", JSON.stringify(test));
-        document.getElementById("dca-content").innerHTML = JSON.stringify(test);
-    } catch(e) {
-        document.getElementById("dca-content").innerHTML = "ERROR: " + e.message;
-    }
     await Promise.all([
         loadRegimePanel(),
         loadDCAModule(),
@@ -315,6 +307,9 @@ async function loadAllData() {
         loadFundingModule(),
         loadRebalancerModule(),
         loadTickerBar(),
+        loadLivePrices(),
+        loadTrending(),
+        loadPortfolioViewer(),
     ]);
 }
 
