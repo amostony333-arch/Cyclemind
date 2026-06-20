@@ -58,23 +58,23 @@ document.getElementById("login-form").addEventListener("submit", (e) => {
     loadRebalancerModule();
 });
 
-// Email / wallet login
+// Email / magic link login
 document.getElementById("email-login-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const email = document.getElementById("email-address").value.trim();
     if (!email) return;
-
-    // Generate wallet entirely client-side. Private key NEVER leaves the browser.
-    const wallet = ethers.Wallet.createRandom();
-
-    document.getElementById("wallet-address-display").textContent = wallet.address;
-    document.getElementById("wallet-mnemonic-display").textContent = wallet.mnemonic.phrase;
-    document.getElementById("wallet-privkey-display").textContent = wallet.privateKey;
-
-    window._pendingWallet = { email, address: wallet.address };
-
-    closeLoginModal();
-    document.getElementById("wallet-reveal-modal").style.display = "flex";
+    try {
+        const res = await fetch(`${API_BASE}/auth/magic-link/request`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email }),
+        });
+        if (!res.ok) throw new Error("Could not send link");
+        document.getElementById("email-tab-content").innerHTML =
+            `<h2>Check your inbox</h2><p class="modal-subtext">We sent a sign-in link to ${email}. Click it to enter your demo account.</p>`;
+    } catch (err) {
+        alert("Could not send sign-in link — please try again.");
+    }
 });
 
 document.getElementById("confirm-saved-checkbox").addEventListener("change", (e) => {
@@ -922,6 +922,25 @@ window.addEventListener("DOMContentLoaded", () => {
         emailUser = JSON.parse(savedEmail);
         showConnectedState();
     }
+
+    // Magic link verification — if the user arrived via an emailed sign-in link
+    const urlParams = new URLSearchParams(window.location.search);
+    const magicToken = urlParams.get("magic_token");
+    if (magicToken) {
+        fetch(`${API_BASE}/auth/magic-link/verify/${magicToken}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.email) {
+                    emailUser = { email: data.email, walletAddress: null };
+                    localStorage.setItem("email_user", JSON.stringify(emailUser));
+                    showConnectedState();
+                    window.history.replaceState({}, "", window.location.pathname);
+                    loadAllData();
+                }
+            })
+            .catch(err => console.error("Magic link verification failed:", err));
+    }
+
     loadAllData();
 });
 
