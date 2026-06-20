@@ -16,7 +16,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Default client for public market data (no auth needed)
 bitget = BitgetClient()
 
 
@@ -28,21 +27,56 @@ class APICredentials(BaseModel):
 
 @app.get("/api/health")
 def health():
-    @app.get("/api/prices")
+    return {"status": "ok", "service": "CycleMind"}
+
+
+# ---------- Live Prices from Bitget ----------
+
+@app.get("/api/prices")
 def get_live_prices():
-    import requests
-    res = requests.get(
-        "https://api.coingecko.com/api/v3/simple/price",
-        params={"ids": "bitcoin,ethereum,solana", "vs_currencies": "usd", "include_24hr_change": "true"}
-    )
-    return res.json()
+    symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+    coin_map = {"BTCUSDT": "bitcoin", "ETHUSDT": "ethereum", "SOLUSDT": "solana"}
+    prices = {}
+    for symbol in symbols:
+        ticker = bitget.get_futures_ticker(symbol)
+        try:
+            price = float(ticker["data"][0]["lastPr"])
+            change = float(ticker["data"][0].get("change24h", 0)) * 100
+            prices[coin_map[symbol]] = {
+                "usd": price,
+                "usd_24h_change": round(change, 2)
+            }
+        except (KeyError, IndexError, ValueError, TypeError):
+            prices[coin_map[symbol]] = {"usd": 0, "usd_24h_change": 0}
+    return prices
+
+
+# ---------- Trending from Bitget (top movers) ----------
 
 @app.get("/api/trending")
 def get_trending():
-    import requests
-    res = requests.get("https://api.coingecko.com/api/v3/search/trending")
-    return res.json()
-    return {"status": "ok", "service": "CycleMind"}
+    symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"]
+    trending = []
+    for symbol in symbols:
+        ticker = bitget.get_futures_ticker(symbol)
+        try:
+            price = float(ticker["data"][0]["lastPr"])
+            change = float(ticker["data"][0].get("change24h", 0)) * 100
+            volume = float(ticker["data"][0].get("baseVolume", 0))
+            trending.append({
+                "item": {
+                    "name": symbol.replace("USDT", ""),
+                    "symbol": symbol.replace("USDT", ""),
+                    "price": price,
+                    "change_24h": round(change, 2),
+                    "volume": volume,
+                    "market_cap_rank": None
+                }
+            })
+        except (KeyError, IndexError, ValueError, TypeError):
+            continue
+    trending.sort(key=lambda x: abs(x["item"]["change_24h"]), reverse=True)
+    return {"coins": trending}
 
 
 # ---------- Public Market Data Routes ----------
@@ -80,7 +114,7 @@ def get_fear_greed():
     return data
 
 
-# ---------- Authenticated Account Routes (require user's own API keys) ----------
+# ---------- Authenticated Account Routes ----------
 
 @app.post("/api/account/spot-balance")
 def get_spot_balance(creds: APICredentials):
@@ -101,22 +135,14 @@ LEVERAGE_TIERS = [5, 10, 25, 50, 100]
 
 @app.get("/api/liquidation-heatmap/{symbol}")
 def liquidation_heatmap(symbol: str):
-    """
-    Estimates liquidation price clusters at common leverage tiers
-    relative to current mark price, using open interest as weighting context.
-    This is an approximation, not an exact exchange-wide liquidation map.
-    """
     ticker = bitget.get_futures_ticker(symbol)
     oi = bitget.get_open_interest(symbol)
-
     try:
         mark_price = float(ticker["data"][0]["lastPr"])
     except (KeyError, IndexError, ValueError, TypeError):
         raise HTTPException(status_code=502, detail="Could not retrieve current price")
-
     clusters = []
     for leverage in LEVERAGE_TIERS:
-        # Approximate liquidation distance for isolated margin: ~1/leverage move
         long_liq = mark_price * (1 - 1 / leverage)
         short_liq = mark_price * (1 + 1 / leverage)
         clusters.append({
@@ -124,7 +150,6 @@ def liquidation_heatmap(symbol: str):
             "long_liquidation_price": round(long_liq, 2),
             "short_liquidation_price": round(short_liq, 2),
         })
-
     return {
         "symbol": symbol,
         "mark_price": mark_price,
@@ -137,34 +162,23 @@ def liquidation_heatmap(symbol: str):
 
 @app.get("/api/funding-signal/{symbol}")
 def funding_signal(symbol: str):
-    """
-    Flags when current funding rate sits in an extreme percentile relative
-    to its recent history, suggesting a delta-neutral capture opportunity.
-    """
     history = bitget.get_history_funding_rates(symbol, limit=100)
     current = bitget.get_current_funding_rate(symbol)
-
     try:
         rates = [float(item["fundingRate"]) for item in history.get("data", [])]
         current_rate = float(current["data"][0]["fundingRate"])
     except (KeyError, IndexError, ValueError, TypeError):
         raise HTTPException(status_code=502, detail="Could not compute funding signal")
-
     if not rates:
         raise HTTPException(status_code=502, detail="No funding rate history available")
-
     rates_sorted = sorted(rates)
     n = len(rates_sorted)
     rank = sum(1 for r in rates_sorted if r <= current_rate)
     percentile = rank / n * 100
-
     is_extreme = percentile >= 90 or percentile <= 10
     suggested_direction = None
     if is_extreme:
-        # Positive funding: longs pay shorts -> capture by going short perp / long spot
-        # Negative funding: shorts pay longs -> capture by going long perp / short spot
         suggested_direction = "short_perp_long_spot" if current_rate > 0 else "long_perp_short_spot"
-
     return {
         "symbol": symbol,
         "current_funding_rate": current_rate,
@@ -174,39 +188,27 @@ def funding_signal(symbol: str):
     }
 
 
-# ---------- Module: Composite Regime Detection (integrates all signals) ----------
+# ---------- Module: Composite Regime Detection ----------
 
 @app.get("/api/regime/{symbol}")
 def get_regime(symbol: str):
-    """
-    The core CycleMind signal. Pulls candles, calculates RSI/MACD/EMA,
-    fetches funding rate and BTC dominance context, and runs the composite
-    confidence scoring engine. Also folds in liquidation cluster proximity
-    so sizing guidance accounts for cascade risk near key leverage levels.
-    """
     candles_raw = bitget.get_candles(symbol, granularity="1H", limit=100)
     funding = bitget.get_current_funding_rate(symbol)
     ticker = bitget.get_futures_ticker(symbol)
-
     try:
         candles = parse_candles(candles_raw["data"])
     except (KeyError, TypeError, ValueError, IndexError):
         raise HTTPException(status_code=502, detail="Could not parse candle data")
-
     if len(candles) < 30:
-        raise HTTPException(status_code=502, detail="Insufficient candle history for regime detection")
-
+        raise HTTPException(status_code=502, detail="Insufficient candle history")
     closes = [c["close"] for c in candles]
     rsi = calculate_rsi(closes)
     macd_hist = calculate_macd_histogram(closes)
     ema_50 = calculate_ema(closes, 50)
-
     try:
         funding_rate = float(funding["data"][0]["fundingRate"])
     except (KeyError, IndexError, ValueError, TypeError):
         funding_rate = 0.0
-
-    # BTC dominance momentum context — only meaningfully used for ETH/SOL
     btc_dominance_change_pct = 0.0
     if symbol != "BTCUSDT":
         btc_candles_raw = bitget.get_candles("BTCUSDT", granularity="1H", limit=30)
@@ -215,7 +217,6 @@ def get_regime(symbol: str):
             btc_dominance_change_pct = ((btc_candles[-1]["close"] - btc_candles[0]["close"]) / btc_candles[0]["close"]) * 100
         except (KeyError, TypeError, ValueError, IndexError):
             pass
-
     result = compute_regime(
         symbol=symbol,
         candles=candles,
@@ -225,8 +226,6 @@ def get_regime(symbol: str):
         funding_rate=funding_rate,
         btc_dominance_change_pct=btc_dominance_change_pct,
     )
-
-    # Fold in liquidation proximity from the heatmap module
     response = {
         "symbol": result.symbol,
         "regime": result.regime.value,
@@ -235,7 +234,6 @@ def get_regime(symbol: str):
         "meets_threshold": result.meets_threshold,
         "components": result.components,
     }
-
     try:
         mark_price = float(ticker["data"][0]["lastPr"])
         clusters = []
@@ -249,13 +247,11 @@ def get_regime(symbol: str):
         response["liquidation_context"] = liq_context
     except (KeyError, IndexError, ValueError, TypeError):
         response["liquidation_context"] = None
-
     return response
 
 
 @app.get("/api/regime-overview")
 def regime_overview():
-    """Returns regime detection for all three core assets in one call."""
     symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
     overview = {}
     for symbol in symbols:
@@ -266,7 +262,34 @@ def regime_overview():
     return overview
 
 
-# ---------- Module: Live Portfolio Rebalancer ----------
+# ---------- Module: Market Overview (no auth needed) ----------
+
+@app.get("/api/market-overview")
+def market_overview():
+    symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+    overview = []
+    for symbol in symbols:
+        ticker = bitget.get_futures_ticker(symbol)
+        funding = bitget.get_current_funding_rate(symbol)
+        oi = bitget.get_open_interest(symbol)
+        try:
+            price = float(ticker["data"][0]["lastPr"])
+            change = float(ticker["data"][0].get("change24h", 0)) * 100
+            funding_rate = float(funding["data"][0]["fundingRate"])
+            oi_val = oi.get("data", [{}])
+            overview.append({
+                "symbol": symbol,
+                "price": price,
+                "change_24h": round(change, 2),
+                "funding_rate": round(funding_rate * 100, 4),
+                "open_interest": oi_val,
+            })
+        except (KeyError, IndexError, ValueError, TypeError):
+            overview.append({"symbol": symbol, "error": "unavailable"})
+    return {"markets": overview}
+
+
+# ---------- Module: Portfolio Rebalancer ----------
 
 RISK_PROFILE_TARGETS = {
     "conservative": {"BTC": 50, "ETH": 25, "SOL": 10, "USDT": 15},
@@ -284,22 +307,12 @@ class RebalanceRequest(BaseModel):
 
 @app.post("/api/rebalance")
 def rebalance_portfolio(req: RebalanceRequest):
-    """
-    Pulls the user's live spot balance, compares it to a target allocation
-    for their selected risk profile, and adjusts the target slightly based
-    on current detected market regimes (e.g. shifts toward USDT in a
-    distribution/downtrend regime). Returns a suggested rebalancing plan —
-    does not execute trades.
-    """
     if req.risk_profile not in RISK_PROFILE_TARGETS:
         raise HTTPException(status_code=400, detail="risk_profile must be conservative, balanced, or aggressive")
-
     client = BitgetClient(req.api_key, req.api_secret, req.passphrase)
     balance_data = client.get_spot_account_balance()
-
     if "error" in balance_data or balance_data.get("code") not in (None, "00000"):
         raise HTTPException(status_code=502, detail=f"Could not fetch balance: {balance_data}")
-
     holdings = {}
     try:
         for asset in balance_data.get("data", []):
@@ -311,11 +324,8 @@ def rebalance_portfolio(req: RebalanceRequest):
                 holdings[coin] = total
     except (ValueError, TypeError):
         raise HTTPException(status_code=502, detail="Could not parse balance data")
-
     if not holdings:
         return {"holdings": {}, "message": "No balances found on this account."}
-
-    # Fetch current prices for valuation (USDT itself is already in USD terms)
     prices = {"USDT": 1.0}
     for coin in holdings:
         if coin == "USDT":
@@ -326,7 +336,6 @@ def rebalance_portfolio(req: RebalanceRequest):
             prices[coin] = float(ticker["data"][0]["lastPr"])
         except (KeyError, IndexError, ValueError, TypeError):
             prices[coin] = None
-
     total_value_usd = 0.0
     valued_holdings = {}
     for coin, amount in holdings.items():
@@ -336,19 +345,13 @@ def rebalance_portfolio(req: RebalanceRequest):
         value = amount * price
         valued_holdings[coin] = {"amount": amount, "price": price, "value_usd": round(value, 2)}
         total_value_usd += value
-
     if total_value_usd == 0:
-        return {"holdings": holdings, "message": "Could not price any holdings — check supported assets."}
-
+        return {"holdings": holdings, "message": "Could not price any holdings."}
     current_allocation_pct = {
         coin: round((data["value_usd"] / total_value_usd) * 100, 1)
         for coin, data in valued_holdings.items()
     }
-
     target = dict(RISK_PROFILE_TARGETS[req.risk_profile])
-
-    # Light regime-aware tilt: if BTC or ETH is in a strong/weak downtrend,
-    # shift 5% of its target allocation into USDT as a defensive measure.
     for coin in ["BTC", "ETH", "SOL"]:
         symbol = f"{coin}USDT"
         try:
@@ -361,7 +364,6 @@ def rebalance_portfolio(req: RebalanceRequest):
                 target["USDT"] = target.get("USDT", 0) + shift
         except HTTPException:
             continue
-
     rebalance_plan = []
     for coin, target_pct in target.items():
         current_pct = current_allocation_pct.get(coin, 0)
@@ -377,14 +379,13 @@ def rebalance_portfolio(req: RebalanceRequest):
             "action": action,
             "amount_usd": round(abs(diff_usd), 2),
         })
-
     return {
         "total_value_usd": round(total_value_usd, 2),
         "current_allocation_pct": current_allocation_pct,
         "target_allocation_pct": target,
         "risk_profile": req.risk_profile,
         "rebalance_plan": rebalance_plan,
-        "note": "This is a suggested plan only. No trades have been executed.",
+        "note": "Suggested plan only. No trades executed.",
     }
 
 
