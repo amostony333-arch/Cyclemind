@@ -28,6 +28,20 @@ class APICredentials(BaseModel):
 
 @app.get("/api/health")
 def health():
+    @app.get("/api/prices")
+def get_live_prices():
+    import requests
+    res = requests.get(
+        "https://api.coingecko.com/api/v3/simple/price",
+        params={"ids": "bitcoin,ethereum,solana", "vs_currencies": "usd", "include_24hr_change": "true"}
+    )
+    return res.json()
+
+@app.get("/api/trending")
+def get_trending():
+    import requests
+    res = requests.get("https://api.coingecko.com/api/v3/search/trending")
+    return res.json()
     return {"status": "ok", "service": "CycleMind"}
 
 
