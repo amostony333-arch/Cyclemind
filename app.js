@@ -1,6 +1,6 @@
 // CycleMind Frontend Logic
 // Change this to your deployed backend URL when going live
-const API_BASE = "https://cyclemind-production.up.railway.app";
+const API_BASE = "https://cyclemind-ynge.vercel.app/";
 
 let userCredentials = null;
 
