@@ -51,6 +51,16 @@
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .nav-logo img {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: #000;
   }
   .nav-links { display: flex; gap: 20px; align-items: center; }
   .nav-links a {
@@ -512,7 +522,10 @@ text-align: center;
 <body>
 
 <nav class="nav">
-  <a href="index.html" class="nav-logo">CycleMind</a>
+  <a href="index.html" class="nav-logo">
+    <img src="logo.jpg" alt="CycleMind logo">
+    CycleMind
+  </a>
   <div class="nav-links">
     <a href="index.html">Dashboard</a>
     <a href="perps.html" class="active">Perps</a>
