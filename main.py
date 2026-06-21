@@ -62,6 +62,11 @@ MAGIC_LINKS_FILE = Path("magic_links.json")
 MAGIC_LINK_EXPIRY_MINUTES = 15
 FRONTEND_URL = "https://cyclemind.vercel.app"
 
+PERP_AUTO_TRADE_COOLDOWN = 3600   # 1 hour cooldown per symbol for perps
+PERP_DEFAULT_LEVERAGE = 5
+PERP_DEFAULT_SIZE_USD = 100.0
+PERP_SIGNAL_THRESHOLD = 3         # minimum strength to act
+
 # ==================== MODELS ====================
 
 class APICredentials(BaseModel):
@@ -94,6 +99,50 @@ class UserSettings(BaseModel):
     default_trade_size_usd: float | None = None
     auto_trade_enabled: bool | None = None
     confirm_risk_acknowledged: bool | None = None   # required True when enabling auto-trade
+
+
+class MagicLinkRequest(BaseModel):
+    email: str
+
+
+# ==================== PERPS: MODELS ====================
+
+class PerpOpenRequest(BaseModel):
+    email: str
+    symbol: str        # "BTC" | "ETH" | "SOL"
+    side: str          # "long" | "short"
+    size_usd: float
+    leverage: int      # 1–100
+
+
+class PerpCloseRequest(BaseModel):
+    email: str
+    position_id: str
+
+
+class RealPerpOpenRequest(BaseModel):
+    api_key: str
+    api_secret: str
+    passphrase: str
+    symbol: str        # "BTC" | "ETH" | "SOL"
+    side: str          # "long" | "short"
+    size_usd: float
+    leverage: int
+
+
+class RealPerpCloseRequest(BaseModel):
+    api_key: str
+    api_secret: str
+    passphrase: str
+    symbol: str
+    position_side: str  # "long" | "short"
+
+
+class PerpAgentSettings(BaseModel):
+    email: str
+    perp_auto_trade_enabled: bool | None = None
+    perp_leverage: int | None = None
+    perp_size_usd: float | None = None
 
 # ==================== USER STORE HELPERS ====================
 
@@ -690,10 +739,6 @@ def email_signup(req: EmailSignup):
 
 # ==================== AUTH: MAGIC LINK ====================
 
-class MagicLinkRequest(BaseModel):
-    email: str
-
-
 @app.post("/api/auth/magic-link/request")
 def request_magic_link(req: MagicLinkRequest):
     token = secrets.token_urlsafe(32)
@@ -995,7 +1040,522 @@ def get_equity_history(email: str):
         "daily_loss_limit_pct": DAILY_LOSS_LIMIT_PCT,
     }
 
-# ==================== AUTO-TRADE BACKGROUND LOOP ====================
+# ==================== PERPS: SIGNAL ====================
+
+@app.get("/api/perps/signal/{symbol}")
+def get_perp_signal(symbol: str):
+    """
+    Combined perp signal: regime + entry/exit score + funding rate.
+    Returns recommended action, confidence, suggested leverage, and TP/SL levels.
+    """
+    full_symbol = f"{symbol}USDT"
+
+    try:
+        regime_data = get_regime(full_symbol)
+    except HTTPException:
+        regime_data = {}
+
+    try:
+        ee_data = entry_exit_signal(full_symbol)
+    except HTTPException:
+        ee_data = {}
+
+    try:
+        funding = bitget.get_current_funding_rate(full_symbol)
+        funding_rate = float(funding["data"][0]["fundingRate"])
+    except (KeyError, IndexError, ValueError, TypeError):
+        funding_rate = 0.0
+
+    regime = regime_data.get("regime", "unknown")
+    regime_confidence = regime_data.get("confidence", 0)
+    ee_action = ee_data.get("action", "wait")
+    ee_score = ee_data.get("score", 0)
+    current_price = ee_data.get("current_price", 0)
+
+    long_signals = 0
+    short_signals = 0
+
+    if "uptrend" in regime:
+        long_signals += 2
+    elif "downtrend" in regime:
+        short_signals += 2
+
+    if ee_action == "enter_long":
+        long_signals += 2
+    elif ee_action == "exit_or_avoid":
+        short_signals += 2
+
+    if funding_rate < -0.0001:
+        long_signals += 1
+    elif funding_rate > 0.0001:
+        short_signals += 1
+
+    if long_signals > short_signals:
+        direction = "long"
+        strength = long_signals
+    elif short_signals > long_signals:
+        direction = "short"
+        strength = short_signals
+    else:
+        direction = "neutral"
+        strength = 0
+
+    if regime_confidence >= 80 and strength >= 4:
+        suggested_leverage = 10
+    elif regime_confidence >= 60 and strength >= 3:
+        suggested_leverage = 5
+    else:
+        suggested_leverage = 3
+
+    suggested_tp = ee_data.get("suggested_take_profit", 0)
+    suggested_sl = ee_data.get("suggested_stop_loss", 0)
+
+    reasons = ee_data.get("reasons", [])
+    if "uptrend" in regime:
+        reasons.append(f"Regime: {regime.replace('_', ' ')} ({regime_confidence}% confidence)")
+    if funding_rate != 0:
+        reasons.append(f"Funding rate: {funding_rate * 100:.4f}% ({'favors longs' if funding_rate < 0 else 'favors shorts'})")
+
+    return {
+        "symbol": symbol,
+        "current_price": current_price,
+        "direction": direction,
+        "strength": strength,
+        "suggested_leverage": suggested_leverage,
+        "suggested_tp": suggested_tp,
+        "suggested_sl": suggested_sl,
+        "regime": regime,
+        "regime_confidence": regime_confidence,
+        "funding_rate": round(funding_rate * 100, 4),
+        "entry_exit_score": ee_score,
+        "reasons": reasons,
+    }
+
+
+@app.get("/api/perps/signal-overview")
+def perp_signal_overview():
+    symbols = ["BTC", "ETH", "SOL"]
+    overview = {}
+    for symbol in symbols:
+        try:
+            overview[symbol] = get_perp_signal(symbol)
+        except HTTPException as e:
+            overview[symbol] = {"error": e.detail}
+    return overview
+
+# ==================== PERPS: DEMO ====================
+
+def _liquidation_price(entry: float, leverage: int, side: str) -> float:
+    """Estimate liquidation price (simplified, no funding)."""
+    margin_pct = 1 / leverage
+    if side == "long":
+        return round(entry * (1 - margin_pct * 0.9), 2)
+    else:
+        return round(entry * (1 + margin_pct * 0.9), 2)
+
+
+def _compute_perp_pnl(pos: dict, current_price: float) -> dict:
+    entry = pos["entry_price"]
+    size_usd = pos["size_usd"]
+    leverage = pos["leverage"]
+    side = pos["side"]
+    notional = size_usd * leverage
+
+    if side == "long":
+        pnl_pct = ((current_price - entry) / entry) * 100 * leverage
+        pnl_usd = (current_price - entry) / entry * notional
+    else:
+        pnl_pct = ((entry - current_price) / entry) * 100 * leverage
+        pnl_usd = (entry - current_price) / entry * notional
+
+    return {
+        "pnl_usd": round(pnl_usd, 2),
+        "pnl_pct": round(pnl_pct, 2),
+        "current_price": current_price,
+        "notional_usd": round(notional, 2),
+        "liquidation_price": _liquidation_price(entry, leverage, side),
+    }
+
+
+@app.post("/api/perps/demo/open")
+def open_demo_perp(req: PerpOpenRequest):
+    user = _get_user(req.email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if req.symbol not in ("BTC", "ETH", "SOL"):
+        raise HTTPException(status_code=400, detail="Unsupported symbol")
+    if req.side not in ("long", "short"):
+        raise HTTPException(status_code=400, detail="side must be 'long' or 'short'")
+    if not (1 <= req.leverage <= 100):
+        raise HTTPException(status_code=400, detail="Leverage must be between 1 and 100")
+    if req.size_usd <= 0:
+        raise HTTPException(status_code=400, detail="size_usd must be positive")
+
+    if req.size_usd > user["demo_balance_usdt"]:
+        raise HTTPException(status_code=400, detail="Insufficient demo balance for margin")
+
+    symbol = f"{req.symbol}USDT"
+    ticker = bitget.get_futures_ticker(symbol)
+    try:
+        price = float(ticker["data"][0]["lastPr"])
+    except (KeyError, IndexError, ValueError, TypeError):
+        raise HTTPException(status_code=502, detail="Could not fetch live price")
+
+    position_id = str(uuid.uuid4())[:12]
+    position = {
+        "id": position_id,
+        "symbol": req.symbol,
+        "side": req.side,
+        "size_usd": req.size_usd,
+        "leverage": req.leverage,
+        "notional_usd": round(req.size_usd * req.leverage, 2),
+        "entry_price": round(price, 2),
+        "liquidation_price": _liquidation_price(price, req.leverage, req.side),
+        "opened_at": datetime.now(timezone.utc).isoformat(),
+        "is_agent": False,
+    }
+
+    perp_positions = user.get("demo_perp_positions", {})
+    perp_positions[position_id] = position
+
+    _update_user(req.email, {
+        "demo_balance_usdt": user["demo_balance_usdt"] - req.size_usd,
+        "demo_perp_positions": perp_positions,
+    })
+
+    return {"status": "opened", "position": position}
+
+
+@app.post("/api/perps/demo/close")
+def close_demo_perp(req: PerpCloseRequest):
+    user = _get_user(req.email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    perp_positions = user.get("demo_perp_positions", {})
+    position = perp_positions.get(req.position_id)
+    if not position:
+        raise HTTPException(status_code=404, detail="Position not found")
+
+    symbol = f"{position['symbol']}USDT"
+    ticker = bitget.get_futures_ticker(symbol)
+    try:
+        price = float(ticker["data"][0]["lastPr"])
+    except (KeyError, IndexError, ValueError, TypeError):
+        raise HTTPException(status_code=502, detail="Could not fetch live price")
+
+    pnl_data = _compute_perp_pnl(position, price)
+    margin_returned = max(0, position["size_usd"] + pnl_data["pnl_usd"])
+
+    del perp_positions[req.position_id]
+
+    perp_log = user.get("demo_perp_log", [])
+    perp_log.append({
+        "id": position["id"],
+        "symbol": position["symbol"],
+        "side": position["side"],
+        "size_usd": position["size_usd"],
+        "leverage": position["leverage"],
+        "entry_price": position["entry_price"],
+        "exit_price": round(price, 2),
+        "pnl_usd": pnl_data["pnl_usd"],
+        "pnl_pct": pnl_data["pnl_pct"],
+        "opened_at": position["opened_at"],
+        "closed_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    _update_user(req.email, {
+        "demo_balance_usdt": user["demo_balance_usdt"] + margin_returned,
+        "demo_perp_positions": perp_positions,
+        "demo_perp_log": perp_log[-50:],
+    })
+
+    return {
+        "status": "closed",
+        "exit_price": round(price, 2),
+        "pnl_usd": pnl_data["pnl_usd"],
+        "pnl_pct": pnl_data["pnl_pct"],
+        "margin_returned": round(margin_returned, 2),
+    }
+
+
+@app.get("/api/perps/demo/positions/{email}")
+def get_demo_perp_positions(email: str):
+    user = _get_user(email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    perp_positions = user.get("demo_perp_positions", {})
+    coin_map = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT"}
+    enriched = {}
+
+    for pos_id, pos in perp_positions.items():
+        symbol = coin_map.get(pos["symbol"])
+        ticker = bitget.get_futures_ticker(symbol)
+        try:
+            price = float(ticker["data"][0]["lastPr"])
+        except (KeyError, IndexError, ValueError, TypeError):
+            price = pos["entry_price"]
+
+        pnl_data = _compute_perp_pnl(pos, price)
+
+        liq_price = pos["liquidation_price"]
+        is_liquidated = (
+            (pos["side"] == "long" and price <= liq_price) or
+            (pos["side"] == "short" and price >= liq_price)
+        )
+
+        enriched[pos_id] = {
+            **pos,
+            **pnl_data,
+            "is_liquidated": is_liquidated,
+        }
+
+    return {
+        "positions": enriched,
+        "cash_usdt": round(user["demo_balance_usdt"], 2),
+        "trade_log": user.get("demo_perp_log", [])[-20:],
+    }
+
+
+# ==================== PERPS: REAL BITGET ====================
+
+@app.post("/api/perps/real/open")
+def open_real_perp(req: RealPerpOpenRequest):
+    if req.symbol not in ("BTC", "ETH", "SOL"):
+        raise HTTPException(status_code=400, detail="Unsupported symbol")
+    if req.side not in ("long", "short"):
+        raise HTTPException(status_code=400, detail="side must be 'long' or 'short'")
+    if not (1 <= req.leverage <= 100):
+        raise HTTPException(status_code=400, detail="Leverage must be between 1 and 100")
+
+    client = BitgetClient(req.api_key, req.api_secret, req.passphrase)
+    symbol = f"{req.symbol}USDT"
+
+    ticker = bitget.get_futures_ticker(symbol)
+    try:
+        price = float(ticker["data"][0]["lastPr"])
+    except (KeyError, IndexError, ValueError, TypeError):
+        raise HTTPException(status_code=502, detail="Could not fetch live price")
+
+    notional = req.size_usd * req.leverage
+    quantity = notional / price
+
+    # Set leverage first (ignore errors — may already be set)
+    try:
+        client.set_leverage(symbol=symbol, leverage=req.leverage, hold_side=req.side)
+    except Exception:
+        pass
+
+    # Place market order — side maps to Bitget's open_long / open_short convention
+    bitget_side = "buy" if req.side == "long" else "sell"
+    trade_side = "open"
+    try:
+        result = client.place_futures_order(
+            symbol=symbol,
+            side=bitget_side,
+            order_type="market",
+            size=str(round(quantity, 4)),
+            trade_side=trade_side,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Order failed: {str(e)}")
+
+    return {
+        "status": "opened",
+        "symbol": symbol,
+        "side": req.side,
+        "leverage": req.leverage,
+        "size_usd": req.size_usd,
+        "notional_usd": round(notional, 2),
+        "entry_price": round(price, 2),
+        "quantity": round(quantity, 4),
+        "order_result": result,
+    }
+
+
+@app.post("/api/perps/real/close")
+def close_real_perp(req: RealPerpCloseRequest):
+    if req.symbol not in ("BTC", "ETH", "SOL"):
+        raise HTTPException(status_code=400, detail="Unsupported symbol")
+
+    client = BitgetClient(req.api_key, req.api_secret, req.passphrase)
+    symbol = f"{req.symbol}USDT"
+
+    try:
+        positions = client.get_futures_positions(symbol=symbol)
+        pos_data = positions.get("data", [])
+        matching = [p for p in pos_data if p.get("holdSide", "").lower() == req.position_side]
+        if not matching:
+            raise HTTPException(status_code=404, detail="No open position found")
+        qty = float(matching[0].get("total", 0))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Could not fetch position: {str(e)}")
+
+    # close_long = sell to close; close_short = buy to close
+    bitget_side = "sell" if req.position_side == "long" else "buy"
+    try:
+        result = client.place_futures_order(
+            symbol=symbol,
+            side=bitget_side,
+            order_type="market",
+            size=str(qty),
+            trade_side="close",
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Close order failed: {str(e)}")
+
+    return {"status": "closed", "order_result": result}
+
+
+@app.get("/api/perps/real/positions")
+def get_real_perp_positions(api_key: str, api_secret: str, passphrase: str):
+    client = BitgetClient(api_key, api_secret, passphrase)
+    results = {}
+    for symbol in ["BTCUSDT", "ETHUSDT", "SOLUSDT"]:
+        try:
+            data = client.get_futures_positions(symbol=symbol)
+            positions = [p for p in data.get("data", []) if float(p.get("total", 0)) > 0]
+            if positions:
+                coin = symbol.replace("USDT", "")
+                ticker = bitget.get_futures_ticker(symbol)
+                try:
+                    price = float(ticker["data"][0]["lastPr"])
+                except Exception:
+                    price = 0
+                for p in positions:
+                    p["current_price"] = price
+                results[coin] = positions
+        except Exception:
+            continue
+    return {"positions": results}
+
+# ==================== PERPS: AUTO-AGENT ====================
+
+async def _run_perp_auto_trade_cycle():
+    users = _load_users()
+
+    for email, user in users.items():
+        user = _ensure_user_defaults(user)
+        if not user.get("perp_auto_trade_enabled"):
+            continue
+        if user.get("kill_switch_active"):
+            continue
+
+        leverage = user.get("perp_leverage", PERP_DEFAULT_LEVERAGE)
+        size_usd = user.get("perp_size_usd", PERP_DEFAULT_SIZE_USD)
+        last_perp_trades = user.get("last_perp_auto_trade", {})
+        now = datetime.now(timezone.utc)
+
+        for symbol in ["BTC", "ETH", "SOL"]:
+            last_str = last_perp_trades.get(symbol)
+            if last_str:
+                last_dt = datetime.fromisoformat(last_str)
+                if (now - last_dt).total_seconds() < PERP_AUTO_TRADE_COOLDOWN:
+                    continue
+
+            try:
+                signal = get_perp_signal(symbol)
+            except Exception:
+                continue
+
+            direction = signal.get("direction")
+            strength = signal.get("strength", 0)
+
+            if direction == "neutral" or strength < PERP_SIGNAL_THRESHOLD:
+                continue
+
+            perp_positions = user.get("demo_perp_positions", {})
+            already_open = any(
+                p["symbol"] == symbol and p["side"] == direction
+                for p in perp_positions.values()
+            )
+            if already_open:
+                continue
+
+            # Close opposite position if exists
+            opposite = "short" if direction == "long" else "long"
+            to_close = [
+                pid for pid, p in perp_positions.items()
+                if p["symbol"] == symbol and p["side"] == opposite
+            ]
+            for pid in to_close:
+                try:
+                    close_demo_perp(PerpCloseRequest(email=email, position_id=pid))
+                except Exception:
+                    pass
+
+            # Open new position
+            try:
+                req = PerpOpenRequest(
+                    email=email,
+                    symbol=symbol,
+                    side=direction,
+                    size_usd=size_usd,
+                    leverage=leverage,
+                )
+                open_demo_perp(req)
+
+                # Mark position as agent-opened
+                updated_user = _get_user(email)
+                perp_pos = updated_user.get("demo_perp_positions", {})
+                for pid, p in perp_pos.items():
+                    if p["symbol"] == symbol and p["side"] == direction and not p.get("is_agent"):
+                        perp_pos[pid]["is_agent"] = True
+                _update_user(email, {"demo_perp_positions": perp_pos})
+
+                last_perp_trades[symbol] = now.isoformat()
+                _update_user(email, {"last_perp_auto_trade": last_perp_trades})
+            except HTTPException:
+                continue
+
+
+async def _perp_auto_trade_loop():
+    while True:
+        try:
+            await _run_perp_auto_trade_cycle()
+        except Exception as e:
+            print(f"Perp auto-trade cycle error: {e}")
+        await asyncio.sleep(300)  # check every 5 minutes
+
+# ==================== PERPS: AGENT SETTINGS ====================
+
+@app.post("/api/perps/agent-settings")
+def update_perp_agent_settings(req: PerpAgentSettings):
+    user = _get_user(req.email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    updates = {}
+    if req.perp_auto_trade_enabled is not None:
+        updates["perp_auto_trade_enabled"] = req.perp_auto_trade_enabled
+    if req.perp_leverage is not None:
+        if not (1 <= req.perp_leverage <= 100):
+            raise HTTPException(status_code=400, detail="Leverage must be 1–100")
+        updates["perp_leverage"] = req.perp_leverage
+    if req.perp_size_usd is not None:
+        if req.perp_size_usd <= 0:
+            raise HTTPException(status_code=400, detail="Size must be positive")
+        updates["perp_size_usd"] = req.perp_size_usd
+
+    _update_user(req.email, updates)
+    return {"status": "ok", **updates}
+
+
+@app.get("/api/perps/agent-settings/{email}")
+def get_perp_agent_settings(email: str):
+    user = _get_user(email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {
+        "perp_auto_trade_enabled": user.get("perp_auto_trade_enabled", False),
+        "perp_leverage": user.get("perp_leverage", PERP_DEFAULT_LEVERAGE),
+        "perp_size_usd": user.get("perp_size_usd", PERP_DEFAULT_SIZE_USD),
+    }
+
+# ==================== AUTO-TRADE BACKGROUND LOOPS ====================
 
 async def _run_auto_trade_cycle():
     users = _load_users()
@@ -1059,8 +1619,9 @@ async def _auto_trade_loop():
 
 
 @app.on_event("startup")
-async def start_auto_trade_loop():
+async def start_background_loops():
     asyncio.create_task(_auto_trade_loop())
+    asyncio.create_task(_perp_auto_trade_loop())
 
 # ==================== ENTRYPOINT ====================
 
