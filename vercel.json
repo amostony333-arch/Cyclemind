@@ -3,6 +3,7 @@
   "builds": [
     { "src": "index.html", "use": "@vercel/static" },
     { "src": "perps.html", "use": "@vercel/static" },
+    { "src": "arb.html", "use": "@vercel/static" },
     { "src": "app.js", "use": "@vercel/static" },
     { "src": "styles.css", "use": "@vercel/static" },
     { "src": "logo.jpg", "use": "@vercel/static" },
@@ -14,6 +15,8 @@
     { "src": "/logo.jpg", "dest": "/logo.jpg" },
     { "src": "/perps.html", "dest": "/perps.html" },
     { "src": "/perps", "dest": "/perps.html" },
+    { "src": "/arb.html", "dest": "/arb.html" },
+    { "src": "/arb", "dest": "/arb.html" },
     { "src": "/api/(.*)", "dest": "/main.py" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
