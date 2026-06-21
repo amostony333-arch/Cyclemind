@@ -1124,7 +1124,6 @@ const SPORTS_EVENTS = [
 // ARB MATH
 // ═══════════════════════════════════════════════════════════════════════
 function calcArb(event) {
-    // For each outcome, find the BEST (highest) odds across platforms
     const platforms = ['poly', 'sx', 'limitless'];
     const platformNames = { poly: 'Polymarket', sx: 'SX Bet', limitless: 'Limitless' };
 
@@ -1137,15 +1136,13 @@ function calcArb(event) {
         return { odd: bestOdd, platform: bestPlatform, platformName: platformNames[bestPlatform] };
     });
 
-    // Arb exists when sum of (1/best_odds) < 1
     const impliedSum = best.reduce((s, b) => s + (b.odd > 0 ? 1 / b.odd : 999), 0);
-    const arbPct = (1 - impliedSum) * 100; // positive = profitable arb
+    const arbPct = (1 - impliedSum) * 100;
 
     return { best, impliedSum, arbPct };
 }
 
 function calcStakeSplit(best, totalStake) {
-    // Optimal stakes: stake_i = totalStake * (1/odd_i) / sum(1/odd_i)
     const invSum = best.reduce((s, b) => s + 1 / b.odd, 0);
     return best.map(b => ({
         stake: (totalStake * (1 / b.odd) / invSum),
@@ -1184,7 +1181,6 @@ function renderScanner() {
 
     list.innerHTML = scannerData.map(ev => renderArbCard(ev)).join('');
 
-    // Attach stake input listeners
     scannerData.forEach(ev => {
         const input = document.getElementById(`stake-${ev.id}`);
         if (input) input.addEventListener('input', () => updateCalc(ev.id));
@@ -1354,11 +1350,9 @@ function executeConfirmedArb() {
     if (!pendingArb) return;
     const { ev, totalStake, splits, profit } = pendingArb;
 
-    // Deduct from balance
     arbState.balance -= totalStake;
     arbState.arbCount++;
 
-    // Create position
     const pos = {
         id: 'arb-' + Date.now(),
         eventId: ev.id,
@@ -1387,7 +1381,6 @@ function executeConfirmedArb() {
     updateDemoBar();
     showToast(`Arb executed! +$${profit.toFixed(2)} locked in.`, 'success');
 
-    // Simulate auto-settlement after event time
     scheduleSettlement(pos);
 }
 
@@ -1399,7 +1392,6 @@ function autoExecuteArb(ev) {
     const totalStake = Math.min(maxStake, arbState.balance * 0.3);
     if (totalStake < 1 || arbState.balance < totalStake) return;
 
-    // Check not already in this event
     if (openPositions.find(p => p.eventId === ev.id)) return;
 
     const splits = calcStakeSplit(ev.arb.best, totalStake);
@@ -1438,12 +1430,10 @@ function autoExecuteArb(ev) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// SETTLEMENT — demo simulates settlement after a short delay
+// SETTLEMENT
 // ═══════════════════════════════════════════════════════════════════════
 function scheduleSettlement(pos) {
-    // In demo: settle after 60 seconds to show the flow
-    const delay = 60000;
-    setTimeout(() => settlePosition(pos.id), delay);
+    setTimeout(() => settlePosition(pos.id), 60000);
 }
 
 function settlePosition(posId) {
@@ -1451,7 +1441,6 @@ function settlePosition(posId) {
     if (idx === -1) return;
     const pos = openPositions[idx];
 
-    // Return stake + profit
     arbState.balance += pos.totalStake + pos.guaranteedProfit;
     arbState.totalPnl += pos.guaranteedProfit;
 
@@ -1556,6 +1545,8 @@ function submitArbLogin() {
     const email = document.getElementById('arb-email-input').value.trim();
     if (!email || !email.includes('@')) { showToast('Enter a valid email.', 'error'); return; }
     arbState.email = email;
+    // Also save to shared key so Dashboard and Perps pick it up
+    localStorage.setItem('email_user', JSON.stringify({ email }));
     saveState();
     closeArbLoginModal();
     updateAuthUI();
@@ -1565,6 +1556,7 @@ function arbLogout() {
     arbState = { email: null, balance: ARB_STARTING_BALANCE, totalPnl: 0, arbCount: 0 };
     openPositions = [];
     tradeHistory  = [];
+    localStorage.removeItem('email_user');
     saveState();
     updateAuthUI();
     renderPositions();
@@ -1604,7 +1596,7 @@ function updateDemoBar() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// PERSIST (localStorage — demo data only)
+// PERSIST
 // ═══════════════════════════════════════════════════════════════════════
 function saveState() {
     try {
@@ -1649,7 +1641,6 @@ function refreshScanner() {
     document.getElementById('scanner-status-text').textContent = 'Refreshing...';
     document.getElementById('scanner-dot').className = 'pulse-dot amber';
     setTimeout(() => {
-        // Simulate slight odds drift on refresh
         SPORTS_EVENTS.forEach(ev => {
             ['poly','sx','limitless'].forEach(p => {
                 ev.odds[p] = ev.odds[p].map(o => {
@@ -1726,10 +1717,21 @@ function showToast(msg, type = 'success') {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// INIT
+// INIT — pulls shared login from Dashboard / Perps automatically
 // ═══════════════════════════════════════════════════════════════════════
 function init() {
     loadState();
+
+    // Pick up shared email login from Dashboard / Perps
+    const sharedEmail = localStorage.getItem('email_user');
+    if (sharedEmail && !arbState.email) {
+        try {
+            const parsed = JSON.parse(sharedEmail);
+            arbState.email = parsed.email;
+            saveState();
+        } catch(e) {}
+    }
+
     updateAuthUI();
     renderScanner();
     renderPositions();
@@ -1737,12 +1739,10 @@ function init() {
     renderSettlement();
     updateLastScan();
 
-    // Re-scan every 45s automatically
     scanInterval = setInterval(() => {
         refreshScanner();
     }, 45000);
 
-    // Re-render position timers every 30s
     setInterval(() => {
         renderPositions();
         renderSettlement();
