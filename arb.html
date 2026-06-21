@@ -1,0 +1,1755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CycleMind — Arb Scanner</title>
+    <link rel="icon" type="image/jpeg" href="logo.jpg">
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        /* ── ARB PAGE TOKENS ───────────────────────────────────────────── */
+        :root {
+            --arb-green:  #00d48a;
+            --arb-cyan:   #00d4e8;
+            --arb-amber:  #f59e0b;
+            --arb-red:    #ff4455;
+            --arb-silver: #c0c8d8;
+            --arb-dim:    #6a7890;
+            --arb-bg:     #08080f;
+            --arb-surf:   #0f1420;
+            --arb-surf2:  #161d2e;
+            --arb-border: #1a2a3a;
+            --mono: 'JetBrains Mono', monospace;
+        }
+
+        body { background: var(--arb-bg); color: var(--arb-silver); }
+
+        /* ── SCANNER HEADER ────────────────────────────────────────────── */
+        .arb-hero {
+            background: #0a0d18;
+            border-bottom: 1px solid var(--arb-border);
+            padding: 2rem 2rem 1.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .arb-hero::before {
+            content: '';
+            position: absolute;
+            top: -40px; left: 50%;
+            transform: translateX(-50%);
+            width: 700px; height: 160px;
+            background: radial-gradient(ellipse, rgba(0,212,138,0.06) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .arb-hero-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .arb-hero h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--arb-silver);
+            letter-spacing: -0.5px;
+        }
+        .arb-hero h1 span {
+            color: var(--arb-green);
+        }
+        .arb-hero p {
+            font-size: 0.82rem;
+            color: var(--arb-dim);
+            margin-top: 0.2rem;
+        }
+        .scanner-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+            color: var(--arb-dim);
+            font-family: var(--mono);
+        }
+        .pulse-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--arb-green);
+            box-shadow: 0 0 8px var(--arb-green);
+            animation: pulse 2s infinite;
+        }
+        .pulse-dot.amber { background: var(--arb-amber); box-shadow: 0 0 8px var(--arb-amber); }
+        @keyframes pulse {
+            0%,100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* ── DEMO BALANCE BAR ──────────────────────────────────────────── */
+        .demo-bar {
+            background: var(--arb-surf);
+            border-bottom: 1px solid var(--arb-border);
+            padding: 0.7rem 2rem;
+        }
+        .demo-bar-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            flex-wrap: wrap;
+        }
+        .demo-stat {
+            display: flex;
+            flex-direction: column;
+            gap: 0.1rem;
+        }
+        .demo-stat .ds-label {
+            font-size: 0.68rem;
+            color: var(--arb-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .demo-stat .ds-value {
+            font-size: 0.95rem;
+            font-weight: 700;
+            font-family: var(--mono);
+            color: var(--arb-silver);
+        }
+        .demo-stat .ds-value.green { color: var(--arb-green); }
+        .demo-stat .ds-value.red   { color: var(--arb-red); }
+        .demo-bar-actions { margin-left: auto; display: flex; gap: 0.6rem; }
+        .demo-login-btn {
+            padding: 0.45rem 1rem;
+            background: transparent;
+            border: 1px solid var(--arb-cyan);
+            color: var(--arb-cyan);
+            border-radius: 7px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            transition: background 0.2s;
+        }
+        .demo-login-btn:hover { background: rgba(0,212,232,0.08); }
+        .demo-reset-btn {
+            padding: 0.45rem 1rem;
+            background: transparent;
+            border: 1px solid var(--arb-border);
+            color: var(--arb-dim);
+            border-radius: 7px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            transition: border-color 0.2s, color 0.2s;
+        }
+        .demo-reset-btn:hover { border-color: var(--arb-silver); color: var(--arb-silver); }
+
+        /* ── FILTERS ───────────────────────────────────────────────────── */
+        .scanner-filters {
+            background: var(--arb-surf);
+            border-bottom: 1px solid var(--arb-border);
+            padding: 0.9rem 2rem;
+        }
+        .scanner-filters-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            flex-wrap: wrap;
+        }
+        .filter-label {
+            font-size: 0.75rem;
+            color: var(--arb-dim);
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .filter-chip {
+            padding: 0.35rem 0.85rem;
+            border-radius: 20px;
+            border: 1px solid var(--arb-border);
+            background: transparent;
+            color: var(--arb-dim);
+            font-size: 0.78rem;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            transition: all 0.15s;
+        }
+        .filter-chip:hover { border-color: var(--arb-cyan); color: var(--arb-cyan); }
+        .filter-chip.active { border-color: var(--arb-green); color: var(--arb-green); background: rgba(0,212,138,0.08); }
+        .filter-sep { width: 1px; height: 20px; background: var(--arb-border); margin: 0 0.2rem; }
+        .min-edge-label {
+            font-size: 0.75rem;
+            color: var(--arb-dim);
+            white-space: nowrap;
+        }
+        .min-edge-input {
+            width: 72px;
+            padding: 0.35rem 0.6rem;
+            border-radius: 6px;
+            border: 1px solid var(--arb-border);
+            background: var(--arb-surf2);
+            color: var(--arb-silver);
+            font-size: 0.82rem;
+            font-family: var(--mono);
+            outline: none;
+        }
+        .min-edge-input:focus { border-color: var(--arb-cyan); }
+        .refresh-btn {
+            margin-left: auto;
+            padding: 0.38rem 1rem;
+            border-radius: 7px;
+            border: 1px solid var(--arb-green);
+            background: rgba(0,212,138,0.08);
+            color: var(--arb-green);
+            font-size: 0.78rem;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            transition: background 0.2s;
+        }
+        .refresh-btn:hover { background: rgba(0,212,138,0.16); }
+
+        /* ── MAIN LAYOUT ───────────────────────────────────────────────── */
+        .arb-main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1.5rem 2rem 4rem;
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 1.5rem;
+            align-items: start;
+        }
+        .arb-left { display: flex; flex-direction: column; gap: 1.5rem; }
+        .arb-right { display: flex; flex-direction: column; gap: 1.5rem; }
+
+        /* ── SECTION TITLES ────────────────────────────────────────────── */
+        .section-title {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--arb-dim);
+            margin-bottom: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .section-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--arb-border);
+        }
+        .section-count {
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            color: var(--arb-green);
+            background: rgba(0,212,138,0.1);
+            border: 1px solid rgba(0,212,138,0.2);
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+        }
+
+        /* ── ARB OPPORTUNITY CARD ──────────────────────────────────────── */
+        .arb-card {
+            background: var(--arb-surf);
+            border: 1px solid var(--arb-border);
+            border-radius: 14px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+            margin-bottom: 1rem;
+        }
+        .arb-card:hover { border-color: rgba(0,212,138,0.25); }
+        .arb-card.hot { border-color: rgba(0,212,138,0.35); }
+
+        .arb-card-header {
+            padding: 1rem 1.2rem 0.8rem;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 0.8rem;
+            border-bottom: 1px solid var(--arb-border);
+        }
+        .arb-event-meta { flex: 1; }
+        .arb-sport-tag {
+            display: inline-block;
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            padding: 0.15rem 0.5rem;
+            border-radius: 3px;
+            margin-bottom: 0.4rem;
+        }
+        .sport-nfl  { background: rgba(0,212,138,0.1);  color: var(--arb-green); border: 1px solid rgba(0,212,138,0.25); }
+        .sport-nba  { background: rgba(0,212,232,0.1);  color: var(--arb-cyan);  border: 1px solid rgba(0,212,232,0.25); }
+        .sport-mlb  { background: rgba(245,158,11,0.1); color: var(--arb-amber); border: 1px solid rgba(245,158,11,0.25); }
+        .sport-nhl  { background: rgba(192,200,216,0.1);color: var(--arb-silver);border: 1px solid rgba(192,200,216,0.25); }
+        .sport-soccer { background: rgba(0,212,138,0.08); color: #4ade80; border: 1px solid rgba(74,222,128,0.2); }
+
+        .arb-event-name {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--arb-silver);
+            line-height: 1.3;
+        }
+        .arb-event-time {
+            font-size: 0.72rem;
+            color: var(--arb-dim);
+            margin-top: 0.2rem;
+            font-family: var(--mono);
+        }
+        .arb-edge-badge {
+            text-align: right;
+            flex-shrink: 0;
+        }
+        .edge-pct {
+            font-size: 1.6rem;
+            font-weight: 700;
+            font-family: var(--mono);
+            color: var(--arb-green);
+            line-height: 1;
+        }
+        .edge-pct.amber { color: var(--arb-amber); }
+        .edge-label {
+            font-size: 0.65rem;
+            color: var(--arb-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        /* ── ODDS TABLE ────────────────────────────────────────────────── */
+        .odds-table {
+            padding: 0.8rem 1.2rem;
+            border-bottom: 1px solid var(--arb-border);
+        }
+        .odds-row {
+            display: grid;
+            grid-template-columns: 1.4fr repeat(3, 1fr);
+            gap: 0.5rem;
+            align-items: center;
+            padding: 0.45rem 0;
+        }
+        .odds-row.header {
+            padding-bottom: 0.3rem;
+            border-bottom: 1px solid var(--arb-border);
+            margin-bottom: 0.2rem;
+        }
+        .odds-row.header span {
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--arb-dim);
+        }
+        .odds-outcome {
+            font-size: 0.82rem;
+            color: var(--arb-silver);
+            font-weight: 500;
+        }
+        .odds-cell {
+            font-size: 0.88rem;
+            font-family: var(--mono);
+            font-weight: 600;
+            text-align: center;
+            padding: 0.3rem 0.4rem;
+            border-radius: 5px;
+            color: var(--arb-dim);
+            background: transparent;
+            transition: all 0.2s;
+        }
+        .odds-cell.best {
+            color: var(--arb-green);
+            background: rgba(0,212,138,0.1);
+            border: 1px solid rgba(0,212,138,0.2);
+        }
+        .odds-cell.na {
+            color: #2a3a4a;
+            font-size: 0.75rem;
+        }
+
+        /* ── ARB CALCULATOR ────────────────────────────────────────────── */
+        .arb-calc {
+            padding: 0.9rem 1.2rem;
+            background: rgba(0,212,138,0.03);
+            border-bottom: 1px solid var(--arb-border);
+        }
+        .calc-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            gap: 0.5rem;
+        }
+        .calc-label {
+            font-size: 0.78rem;
+            color: var(--arb-dim);
+        }
+        .calc-value {
+            font-size: 0.85rem;
+            font-family: var(--mono);
+            font-weight: 600;
+            color: var(--arb-silver);
+        }
+        .calc-value.green { color: var(--arb-green); }
+        .stake-input-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .stake-input-row label {
+            font-size: 0.78rem;
+            color: var(--arb-dim);
+            white-space: nowrap;
+        }
+        .stake-input {
+            width: 90px;
+            padding: 0.35rem 0.6rem;
+            border-radius: 6px;
+            border: 1px solid var(--arb-border);
+            background: var(--arb-surf2);
+            color: var(--arb-silver);
+            font-size: 0.85rem;
+            font-family: var(--mono);
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .stake-input:focus { border-color: var(--arb-cyan); }
+        .stake-splits {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.4rem;
+            margin-top: 0.3rem;
+        }
+        .stake-split-cell {
+            background: var(--arb-surf2);
+            border: 1px solid var(--arb-border);
+            border-radius: 6px;
+            padding: 0.4rem 0.6rem;
+        }
+        .stake-split-cell .ss-platform {
+            font-size: 0.65rem;
+            color: var(--arb-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .stake-split-cell .ss-amount {
+            font-size: 0.88rem;
+            font-weight: 600;
+            font-family: var(--mono);
+            color: var(--arb-cyan);
+        }
+        .stake-split-cell .ss-outcome {
+            font-size: 0.7rem;
+            color: var(--arb-dim);
+            margin-top: 0.1rem;
+        }
+
+        /* ── CARD ACTIONS ──────────────────────────────────────────────── */
+        .arb-card-actions {
+            padding: 0.8rem 1.2rem;
+            display: flex;
+            gap: 0.6rem;
+            align-items: center;
+        }
+        .btn-execute {
+            flex: 1;
+            padding: 0.6rem;
+            background: var(--arb-green);
+            color: #08080f;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            transition: opacity 0.2s, box-shadow 0.2s;
+            letter-spacing: 0.02em;
+        }
+        .btn-execute:hover {
+            opacity: 0.88;
+            box-shadow: 0 0 16px rgba(0,212,138,0.3);
+        }
+        .btn-watch {
+            padding: 0.6rem 0.9rem;
+            background: transparent;
+            border: 1px solid var(--arb-border);
+            color: var(--arb-dim);
+            border-radius: 8px;
+            font-size: 0.82rem;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            transition: all 0.2s;
+        }
+        .btn-watch:hover { border-color: var(--arb-cyan); color: var(--arb-cyan); }
+        .btn-watch.watching { border-color: var(--arb-amber); color: var(--arb-amber); background: rgba(245,158,11,0.06); }
+        .settle-time {
+            font-size: 0.7rem;
+            color: var(--arb-dim);
+            font-family: var(--mono);
+            margin-left: auto;
+        }
+
+        /* ── RIGHT PANEL ───────────────────────────────────────────────── */
+        .panel-card {
+            background: var(--arb-surf);
+            border: 1px solid var(--arb-border);
+            border-radius: 14px;
+            overflow: hidden;
+        }
+        .panel-card-header {
+            padding: 0.9rem 1.2rem;
+            border-bottom: 1px solid var(--arb-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .panel-card-header h3 {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--arb-silver);
+        }
+        .panel-card-body { padding: 1rem 1.2rem; }
+
+        /* ── POSITION TRACKER ──────────────────────────────────────────── */
+        .position-item {
+            padding: 0.7rem 0;
+            border-bottom: 1px solid var(--arb-border);
+        }
+        .position-item:last-child { border-bottom: none; }
+        .pos-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.35rem;
+        }
+        .pos-event { font-size: 0.8rem; font-weight: 600; color: var(--arb-silver); }
+        .pos-pnl {
+            font-size: 0.82rem;
+            font-weight: 700;
+            font-family: var(--mono);
+        }
+        .pos-pnl.green { color: var(--arb-green); }
+        .pos-pnl.pending { color: var(--arb-amber); }
+        .pos-details {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .pos-detail-item {
+            display: flex;
+            flex-direction: column;
+        }
+        .pos-detail-item .pd-label {
+            font-size: 0.62rem;
+            color: var(--arb-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .pos-detail-item .pd-value {
+            font-size: 0.78rem;
+            font-family: var(--mono);
+            color: var(--arb-silver);
+        }
+        .pos-settle-bar {
+            margin-top: 0.5rem;
+            height: 3px;
+            background: var(--arb-border);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .pos-settle-fill {
+            height: 100%;
+            border-radius: 2px;
+            background: linear-gradient(90deg, var(--arb-cyan), var(--arb-green));
+            transition: width 0.5s ease;
+        }
+        .pos-settle-label {
+            font-size: 0.65rem;
+            color: var(--arb-dim);
+            margin-top: 0.25rem;
+            font-family: var(--mono);
+        }
+        .no-positions {
+            text-align: center;
+            padding: 1.5rem 0;
+            color: var(--arb-dim);
+            font-size: 0.82rem;
+        }
+        .no-positions span { display: block; font-size: 1.4rem; margin-bottom: 0.4rem; }
+
+        /* ── TRADE HISTORY ─────────────────────────────────────────────── */
+        .history-item {
+            padding: 0.65rem 0;
+            border-bottom: 1px solid var(--arb-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .history-item:last-child { border-bottom: none; }
+        .history-left .hi-event {
+            font-size: 0.78rem;
+            font-weight: 500;
+            color: var(--arb-silver);
+        }
+        .history-left .hi-meta {
+            font-size: 0.68rem;
+            color: var(--arb-dim);
+            margin-top: 0.1rem;
+            font-family: var(--mono);
+        }
+        .history-right { text-align: right; }
+        .hi-pnl {
+            font-size: 0.82rem;
+            font-weight: 700;
+            font-family: var(--mono);
+        }
+        .hi-pnl.won { color: var(--arb-green); }
+        .hi-pnl.lost { color: var(--arb-red); }
+        .hi-stake {
+            font-size: 0.68rem;
+            color: var(--arb-dim);
+            font-family: var(--mono);
+        }
+
+        /* ── AUTO TRADE TOGGLE ─────────────────────────────────────────── */
+        .auto-toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.8rem 1.2rem;
+            border-top: 1px solid var(--arb-border);
+        }
+        .auto-toggle-label {
+            font-size: 0.82rem;
+            color: var(--arb-silver);
+            font-weight: 500;
+        }
+        .auto-toggle-sub {
+            font-size: 0.7rem;
+            color: var(--arb-dim);
+            margin-top: 0.1rem;
+        }
+        .toggle-switch {
+            position: relative;
+            width: 42px;
+            height: 24px;
+            flex-shrink: 0;
+        }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider {
+            position: absolute;
+            inset: 0;
+            background: var(--arb-border);
+            border-radius: 24px;
+            cursor: pointer;
+            transition: background 0.25s;
+        }
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            width: 18px; height: 18px;
+            left: 3px; top: 3px;
+            background: var(--arb-dim);
+            border-radius: 50%;
+            transition: transform 0.25s, background 0.25s;
+        }
+        .toggle-switch input:checked + .toggle-slider { background: rgba(0,212,138,0.2); border: 1px solid rgba(0,212,138,0.4); }
+        .toggle-switch input:checked + .toggle-slider::before { transform: translateX(18px); background: var(--arb-green); box-shadow: 0 0 8px rgba(0,212,138,0.5); }
+
+        /* ── EMPTY STATE ───────────────────────────────────────────────── */
+        .empty-scanner {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--arb-dim);
+        }
+        .empty-scanner .es-icon { font-size: 2.5rem; margin-bottom: 0.8rem; }
+        .empty-scanner .es-title { font-size: 1rem; font-weight: 600; color: var(--arb-silver); margin-bottom: 0.4rem; }
+        .empty-scanner .es-sub { font-size: 0.82rem; line-height: 1.5; }
+
+        /* ── TOAST ─────────────────────────────────────────────────────── */
+        .arb-toast {
+            position: fixed;
+            bottom: 24px; right: 24px;
+            padding: 0.8rem 1.2rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            z-index: 9999;
+            animation: toast-in 0.25s ease-out;
+            max-width: 300px;
+        }
+        .arb-toast.success { background: var(--arb-green); color: #08080f; box-shadow: 0 4px 20px rgba(0,212,138,0.35); }
+        .arb-toast.error   { background: var(--arb-red);   color: white;   box-shadow: 0 4px 20px rgba(255,68,85,0.35); }
+        .arb-toast.info    { background: var(--arb-cyan);  color: #08080f; box-shadow: 0 4px 20px rgba(0,212,232,0.35); }
+        @keyframes toast-in {
+            from { transform: translateY(10px); opacity: 0; }
+            to   { transform: translateY(0);    opacity: 1; }
+        }
+
+        /* ── MODAL ─────────────────────────────────────────────────────── */
+        .arb-modal {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.75);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(6px);
+        }
+        .arb-modal-content {
+            background: var(--arb-surf);
+            border: 1px solid var(--arb-border);
+            border-radius: 18px;
+            padding: 2rem;
+            width: 90%; max-width: 400px;
+            box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+        }
+        .arb-modal-content h2 { font-size: 1.1rem; font-weight: 700; color: var(--arb-silver); margin-bottom: 0.5rem; }
+        .arb-modal-content p  { font-size: 0.82rem; color: var(--arb-dim); margin-bottom: 1rem; line-height: 1.5; }
+        .arb-modal-content input {
+            width: 100%; padding: 0.75rem 1rem;
+            border: 1px solid var(--arb-border); border-radius: 9px;
+            background: var(--arb-surf2); color: var(--arb-silver);
+            font-size: 0.9rem; font-family: 'Inter', sans-serif;
+            outline: none; margin-bottom: 0.8rem;
+            transition: border-color 0.2s;
+        }
+        .arb-modal-content input:focus { border-color: var(--arb-cyan); }
+        .arb-modal-btns { display: flex; gap: 0.6rem; margin-top: 0.5rem; }
+        .btn-primary-arb {
+            flex: 1; padding: 0.75rem;
+            background: var(--arb-cyan); color: #08080f;
+            border: none; border-radius: 9px;
+            font-size: 0.9rem; font-weight: 700;
+            cursor: pointer; font-family: 'Inter', sans-serif;
+            transition: opacity 0.2s;
+        }
+        .btn-primary-arb:hover { opacity: 0.88; }
+        .btn-cancel-arb {
+            padding: 0.75rem 1rem;
+            background: transparent;
+            border: 1px solid var(--arb-border);
+            color: var(--arb-dim); border-radius: 9px;
+            font-size: 0.9rem; cursor: pointer;
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* ── CONFIRM MODAL ─────────────────────────────────────────────── */
+        .confirm-details {
+            background: var(--arb-surf2);
+            border: 1px solid var(--arb-border);
+            border-radius: 10px;
+            padding: 0.9rem 1rem;
+            margin-bottom: 1rem;
+        }
+        .confirm-detail-row {
+            display: flex; justify-content: space-between;
+            font-size: 0.8rem; padding: 0.3rem 0;
+            border-bottom: 1px solid var(--arb-border);
+        }
+        .confirm-detail-row:last-child { border-bottom: none; }
+        .confirm-detail-row .cd-label { color: var(--arb-dim); }
+        .confirm-detail-row .cd-value { font-family: var(--mono); color: var(--arb-silver); font-weight: 600; }
+        .confirm-detail-row .cd-value.green { color: var(--arb-green); }
+
+        /* ── RESPONSIVE ────────────────────────────────────────────────── */
+        @media (max-width: 900px) {
+            .arb-main { grid-template-columns: 1fr; padding: 1rem; }
+            .arb-right { order: -1; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        }
+        @media (max-width: 600px) {
+            .arb-hero { padding: 1.2rem 1rem 1rem; }
+            .arb-hero h1 { font-size: 1.2rem; }
+            .scanner-filters, .demo-bar { padding: 0.7rem 1rem; }
+            .arb-right { grid-template-columns: 1fr; }
+            .odds-row { grid-template-columns: 1.2fr repeat(3, 1fr); }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── NAVBAR ─────────────────────────────────────────────────────────── -->
+<nav class="navbar">
+    <div class="nav-brand">
+        <div class="logo">
+            <img src="logo.jpg" alt="CycleMind logo">
+        </div>
+        <span class="brand-name">CycleMind</span>
+    </div>
+    <div class="nav-links">
+        <a href="index.html">Dashboard</a>
+        <a href="perps.html">Perps</a>
+        <a href="arb.html" class="active">Arb</a>
+    </div>
+    <div class="nav-center" id="arb-ticker">
+        <span id="arb-ticker-text">SCANNER READY — 0 opportunities found</span>
+    </div>
+    <div id="auth-section">
+        <span id="arb-demo-badge" style="display:none;" class="badge-connected">● Demo</span>
+        <button id="arb-login-btn" onclick="showArbLoginModal()">Connect Demo</button>
+        <button id="arb-logout-btn" style="display:none;" onclick="arbLogout()">Log Out</button>
+    </div>
+</nav>
+
+<!-- ── HERO ───────────────────────────────────────────────────────────── -->
+<div class="arb-hero">
+    <div class="arb-hero-inner">
+        <div>
+            <h1>Prediction Market <span>Arb Scanner</span></h1>
+            <p>Live odds across Polymarket · SX Bet · Limitless — sports markets only</p>
+        </div>
+        <div class="scanner-status">
+            <div class="pulse-dot" id="scanner-dot"></div>
+            <span id="scanner-status-text">Scanning markets...</span>
+        </div>
+    </div>
+</div>
+
+<!-- ── DEMO BALANCE BAR ───────────────────────────────────────────────── -->
+<div class="demo-bar" id="demo-balance-bar" style="display:none;">
+    <div class="demo-bar-inner">
+        <div class="demo-stat">
+            <span class="ds-label">Demo Balance</span>
+            <span class="ds-value" id="db-balance">$1,000.00</span>
+        </div>
+        <div class="demo-stat">
+            <span class="ds-label">Locked in Positions</span>
+            <span class="ds-value" id="db-locked">$0.00</span>
+        </div>
+        <div class="demo-stat">
+            <span class="ds-label">Realised P&L</span>
+            <span class="ds-value green" id="db-pnl">+$0.00</span>
+        </div>
+        <div class="demo-stat">
+            <span class="ds-label">Arbs Executed</span>
+            <span class="ds-value" id="db-count">0</span>
+        </div>
+        <div class="demo-bar-actions">
+            <button class="demo-reset-btn" onclick="resetDemoArb()">Reset Demo</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── FILTERS ────────────────────────────────────────────────────────── -->
+<div class="scanner-filters">
+    <div class="scanner-filters-inner">
+        <span class="filter-label">Sport:</span>
+        <button class="filter-chip active" data-sport="all" onclick="setSportFilter(this)">All</button>
+        <button class="filter-chip" data-sport="NFL" onclick="setSportFilter(this)">NFL</button>
+        <button class="filter-chip" data-sport="NBA" onclick="setSportFilter(this)">NBA</button>
+        <button class="filter-chip" data-sport="MLB" onclick="setSportFilter(this)">MLB</button>
+        <button class="filter-chip" data-sport="NHL" onclick="setSportFilter(this)">NHL</button>
+        <button class="filter-chip" data-sport="Soccer" onclick="setSportFilter(this)">Soccer</button>
+        <div class="filter-sep"></div>
+        <span class="min-edge-label">Min edge:</span>
+        <input type="number" class="min-edge-input" id="min-edge-input" value="1.5" step="0.1" min="0" max="20" onchange="renderScanner()">
+        <span class="min-edge-label">%</span>
+        <button class="refresh-btn" onclick="refreshScanner()">↻ Refresh</button>
+    </div>
+</div>
+
+<!-- ── MAIN ───────────────────────────────────────────────────────────── -->
+<div class="arb-main">
+
+    <!-- LEFT: Scanner + Positions + History -->
+    <div class="arb-left">
+
+        <!-- Live Opportunities -->
+        <div>
+            <div class="section-title">
+                Live Arb Opportunities
+                <span class="section-count" id="opp-count">0</span>
+            </div>
+            <div id="scanner-list">
+                <div class="empty-scanner">
+                    <div class="es-icon">📡</div>
+                    <div class="es-title">Scanning prediction markets...</div>
+                    <div class="es-sub">Comparing odds across Polymarket, SX Bet, and Limitless for live sports events.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Open Positions -->
+        <div>
+            <div class="section-title">Open Positions</div>
+            <div class="panel-card">
+                <div class="panel-card-body" id="positions-list">
+                    <div class="no-positions">
+                        <span>📋</span>
+                        No open positions. Execute an arb to start tracking.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trade History -->
+        <div>
+            <div class="section-title">Trade History</div>
+            <div class="panel-card">
+                <div class="panel-card-header">
+                    <h3>Settled Arbs</h3>
+                    <span style="font-size:0.72rem;color:var(--arb-dim);font-family:var(--mono);" id="history-summary">0 trades · $0.00 profit</span>
+                </div>
+                <div class="panel-card-body" id="history-list">
+                    <div style="text-align:center;padding:1rem 0;color:var(--arb-dim);font-size:0.82rem;">No settled trades yet.</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- RIGHT: Stats + Auto trade -->
+    <div class="arb-right">
+
+        <!-- Platform Coverage -->
+        <div class="panel-card">
+            <div class="panel-card-header">
+                <h3>Platform Coverage</h3>
+                <div class="pulse-dot" style="width:7px;height:7px;"></div>
+            </div>
+            <div class="panel-card-body">
+                <div class="metric" style="margin-bottom:0.4rem;">
+                    <span class="metric-label" style="font-size:0.8rem;color:var(--arb-dim);">Polymarket</span>
+                    <span style="font-size:0.8rem;font-family:var(--mono);color:var(--arb-green);">● Live</span>
+                </div>
+                <div class="metric" style="margin-bottom:0.4rem;">
+                    <span class="metric-label" style="font-size:0.8rem;color:var(--arb-dim);">SX Bet</span>
+                    <span style="font-size:0.8rem;font-family:var(--mono);color:var(--arb-green);">● Live</span>
+                </div>
+                <div class="metric" style="margin-bottom:0;">
+                    <span class="metric-label" style="font-size:0.8rem;color:var(--arb-dim);">Limitless</span>
+                    <span style="font-size:0.8rem;font-family:var(--mono);color:var(--arb-amber);">● Delayed 30s</span>
+                </div>
+                <div style="margin-top:0.9rem;padding-top:0.8rem;border-top:1px solid var(--arb-border);">
+                    <div style="font-size:0.68rem;color:var(--arb-dim);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.4rem;">Last scan</div>
+                    <div style="font-size:0.85rem;font-family:var(--mono);color:var(--arb-silver);" id="last-scan-time">--:--:--</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Auto-Trade -->
+        <div class="panel-card">
+            <div class="panel-card-header">
+                <h3>Auto-Trade</h3>
+                <span style="font-size:0.68rem;padding:0.15rem 0.5rem;border-radius:3px;background:rgba(245,158,11,0.1);color:var(--arb-amber);border:1px solid rgba(245,158,11,0.25);font-weight:700;letter-spacing:0.05em;">BETA</span>
+            </div>
+            <div class="panel-card-body">
+                <div class="metric" style="margin-bottom:0.5rem;">
+                    <span style="font-size:0.78rem;color:var(--arb-dim);">Min edge to execute</span>
+                    <span style="font-family:var(--mono);font-size:0.82rem;color:var(--arb-silver);" id="auto-edge-display">2.0%</span>
+                </div>
+                <div class="metric" style="margin-bottom:0.5rem;">
+                    <span style="font-size:0.78rem;color:var(--arb-dim);">Max stake per arb</span>
+                    <span style="font-family:var(--mono);font-size:0.82rem;color:var(--arb-silver);" id="auto-stake-display">$50.00</span>
+                </div>
+                <div style="margin:0.8rem 0;display:flex;flex-direction:column;gap:0.5rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.78rem;">
+                        <span style="color:var(--arb-dim);">Min edge %</span>
+                        <input type="number" id="auto-min-edge" value="2.0" min="0.5" max="20" step="0.5"
+                            style="width:70px;padding:0.3rem 0.5rem;border-radius:5px;border:1px solid var(--arb-border);background:var(--arb-surf2);color:var(--arb-silver);font-family:var(--mono);font-size:0.8rem;outline:none;"
+                            onchange="document.getElementById('auto-edge-display').textContent=this.value+'%'">
+                    </div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.78rem;">
+                        <span style="color:var(--arb-dim);">Max stake ($)</span>
+                        <input type="number" id="auto-max-stake" value="50" min="5" max="500" step="5"
+                            style="width:70px;padding:0.3rem 0.5rem;border-radius:5px;border:1px solid var(--arb-border);background:var(--arb-surf2);color:var(--arb-silver);font-family:var(--mono);font-size:0.8rem;outline:none;"
+                            onchange="document.getElementById('auto-stake-display').textContent='$'+parseFloat(this.value).toFixed(2)">
+                    </div>
+                </div>
+            </div>
+            <div class="auto-toggle-row">
+                <div>
+                    <div class="auto-toggle-label">Auto-execute arbs</div>
+                    <div class="auto-toggle-sub">Runs on demo account only</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="auto-trade-toggle" onchange="toggleAutoTrade(this.checked)">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Settlement Tracker -->
+        <div class="panel-card">
+            <div class="panel-card-header">
+                <h3>Settlement Tracker</h3>
+            </div>
+            <div class="panel-card-body" id="settlement-list">
+                <div style="text-align:center;padding:1rem 0;color:var(--arb-dim);font-size:0.82rem;">No positions pending settlement.</div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ── LOGIN MODAL ────────────────────────────────────────────────────── -->
+<div id="arb-login-modal" class="arb-modal" style="display:none;">
+    <div class="arb-modal-content">
+        <h2>Start Demo Trading</h2>
+        <p>Enter your email to get a demo account with $1,000 in simulated funds for arb trading. No real money involved.</p>
+        <input type="email" id="arb-email-input" placeholder="you@example.com">
+        <div class="arb-modal-btns">
+            <button class="btn-primary-arb" onclick="submitArbLogin()">Start Demo</button>
+            <button class="btn-cancel-arb" onclick="closeArbLoginModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── EXECUTE CONFIRM MODAL ──────────────────────────────────────────── -->
+<div id="arb-confirm-modal" class="arb-modal" style="display:none;">
+    <div class="arb-modal-content">
+        <h2>Confirm Arb Trade</h2>
+        <p>This will place two simultaneous positions to lock in the arbitrage profit.</p>
+        <div class="confirm-details" id="confirm-details-body"></div>
+        <div class="arb-modal-btns">
+            <button class="btn-primary-arb" onclick="executeConfirmedArb()" style="background:var(--arb-green);">Execute Arb</button>
+            <button class="btn-cancel-arb" onclick="closeConfirmModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════
+const ARB_DEMO_KEY    = 'cyclemind_arb_demo';
+const ARB_POS_KEY     = 'cyclemind_arb_positions';
+const ARB_HISTORY_KEY = 'cyclemind_arb_history';
+const ARB_STARTING_BALANCE = 1000;
+
+let arbState = {
+    email: null,
+    balance: ARB_STARTING_BALANCE,
+    totalPnl: 0,
+    arbCount: 0,
+};
+let openPositions = [];
+let tradeHistory  = [];
+let scannerData   = [];
+let sportFilter   = 'all';
+let autoTradeOn   = false;
+let pendingArb    = null;
+let autoInterval  = null;
+let scanInterval  = null;
+
+// ═══════════════════════════════════════════════════════════════════════
+// MOCK DATA — realistic sports prediction market arb opportunities
+// ═══════════════════════════════════════════════════════════════════════
+const SPORTS_EVENTS = [
+    {
+        id: 'e1',
+        sport: 'NFL',
+        event: 'Kansas City Chiefs vs Philadelphia Eagles',
+        time: 'Sun Jun 22 · 4:25 PM ET',
+        settles: Date.now() + 1000 * 3600 * 28,
+        outcomes: ['Chiefs ML', 'Eagles ML'],
+        odds: {
+            poly:     [0.54, 0.47],
+            sx:       [0.56, 0.45],
+            limitless:[0.53, 0.48],
+        }
+    },
+    {
+        id: 'e2',
+        sport: 'NBA',
+        event: 'Boston Celtics vs Golden State Warriors',
+        time: 'Mon Jun 23 · 7:30 PM ET',
+        settles: Date.now() + 1000 * 3600 * 52,
+        outcomes: ['Celtics ML', 'Warriors ML'],
+        odds: {
+            poly:     [0.61, 0.40],
+            sx:       [0.63, 0.38],
+            limitless:[0.60, 0.41],
+        }
+    },
+    {
+        id: 'e3',
+        sport: 'MLB',
+        event: 'New York Yankees vs Los Angeles Dodgers',
+        time: 'Sun Jun 22 · 1:05 PM ET',
+        settles: Date.now() + 1000 * 3600 * 6,
+        outcomes: ['Yankees Win', 'Dodgers Win'],
+        odds: {
+            poly:     [0.44, 0.57],
+            sx:       [0.46, 0.55],
+            limitless:[null, 0.58],
+        }
+    },
+    {
+        id: 'e4',
+        sport: 'Soccer',
+        event: 'Man City vs Real Madrid — UCL Final',
+        time: 'Sat Jun 28 · 3:00 PM ET',
+        settles: Date.now() + 1000 * 3600 * 168,
+        outcomes: ['Man City Win', 'Real Madrid Win'],
+        odds: {
+            poly:     [0.48, 0.52],
+            sx:       [0.50, 0.51],
+            limitless:[0.47, 0.54],
+        }
+    },
+    {
+        id: 'e5',
+        sport: 'NHL',
+        event: 'Florida Panthers vs Edmonton Oilers — Stanley Cup G7',
+        time: 'Mon Jun 24 · 8:00 PM ET',
+        settles: Date.now() + 1000 * 3600 * 62,
+        outcomes: ['Panthers Win', 'Oilers Win'],
+        odds: {
+            poly:     [0.55, 0.46],
+            sx:       [0.57, 0.44],
+            limitless:[0.54, 0.47],
+        }
+    },
+    {
+        id: 'e6',
+        sport: 'NFL',
+        event: 'San Francisco 49ers vs Dallas Cowboys',
+        time: 'Sun Jun 29 · 8:20 PM ET',
+        settles: Date.now() + 1000 * 3600 * 190,
+        outcomes: ['49ers ML', 'Cowboys ML'],
+        odds: {
+            poly:     [0.58, 0.43],
+            sx:       [0.60, 0.41],
+            limitless:[0.57, 0.44],
+        }
+    },
+];
+
+// ═══════════════════════════════════════════════════════════════════════
+// ARB MATH
+// ═══════════════════════════════════════════════════════════════════════
+function calcArb(event) {
+    // For each outcome, find the BEST (highest) odds across platforms
+    const platforms = ['poly', 'sx', 'limitless'];
+    const platformNames = { poly: 'Polymarket', sx: 'SX Bet', limitless: 'Limitless' };
+
+    const best = event.outcomes.map((_, i) => {
+        let bestOdd = 0, bestPlatform = null;
+        for (const p of platforms) {
+            const o = event.odds[p][i];
+            if (o !== null && o > bestOdd) { bestOdd = o; bestPlatform = p; }
+        }
+        return { odd: bestOdd, platform: bestPlatform, platformName: platformNames[bestPlatform] };
+    });
+
+    // Arb exists when sum of (1/best_odds) < 1
+    const impliedSum = best.reduce((s, b) => s + (b.odd > 0 ? 1 / b.odd : 999), 0);
+    const arbPct = (1 - impliedSum) * 100; // positive = profitable arb
+
+    return { best, impliedSum, arbPct };
+}
+
+function calcStakeSplit(best, totalStake) {
+    // Optimal stakes: stake_i = totalStake * (1/odd_i) / sum(1/odd_i)
+    const invSum = best.reduce((s, b) => s + 1 / b.odd, 0);
+    return best.map(b => ({
+        stake: (totalStake * (1 / b.odd) / invSum),
+        guaranteedReturn: totalStake * (1 / b.odd) / invSum * b.odd,
+    }));
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// SCANNER RENDER
+// ═══════════════════════════════════════════════════════════════════════
+function computeScannerData() {
+    const minEdge = parseFloat(document.getElementById('min-edge-input').value) || 0;
+    return SPORTS_EVENTS
+        .map(ev => ({ ...ev, arb: calcArb(ev) }))
+        .filter(ev => {
+            if (sportFilter !== 'all' && ev.sport !== sportFilter) return false;
+            if (ev.arb.arbPct < minEdge) return false;
+            return true;
+        })
+        .sort((a, b) => b.arb.arbPct - a.arb.arbPct);
+}
+
+function renderScanner() {
+    scannerData = computeScannerData();
+    document.getElementById('opp-count').textContent = scannerData.length;
+
+    const list = document.getElementById('scanner-list');
+    if (scannerData.length === 0) {
+        list.innerHTML = `<div class="empty-scanner">
+            <div class="es-icon">🔍</div>
+            <div class="es-title">No arbs above ${document.getElementById('min-edge-input').value}% edge</div>
+            <div class="es-sub">Lower the minimum edge or wait for market movements.</div>
+        </div>`;
+        return;
+    }
+
+    list.innerHTML = scannerData.map(ev => renderArbCard(ev)).join('');
+
+    // Attach stake input listeners
+    scannerData.forEach(ev => {
+        const input = document.getElementById(`stake-${ev.id}`);
+        if (input) input.addEventListener('input', () => updateCalc(ev.id));
+        updateCalc(ev.id);
+    });
+
+    updateTicker();
+}
+
+function renderArbCard(ev) {
+    const { best, arbPct } = ev.arb;
+    const isHot = arbPct >= 3;
+    const edgeClass = arbPct >= 3 ? '' : 'amber';
+    const platforms = ['poly', 'sx', 'limitless'];
+    const platformNames = { poly: 'Polymarket', sx: 'SX Bet', limitless: 'Limitless' };
+
+    const oddsRows = ev.outcomes.map((outcome, i) => {
+        const cells = platforms.map(p => {
+            const o = ev.odds[p][i];
+            const isBest = p === best[i].platform;
+            if (o === null) return `<span class="odds-cell na">—</span>`;
+            return `<span class="odds-cell${isBest ? ' best' : ''}">${o.toFixed(2)}</span>`;
+        }).join('');
+        return `<div class="odds-row">
+            <span class="odds-outcome">${outcome}</span>
+            ${cells}
+        </div>`;
+    }).join('');
+
+    const bestLabels = best.map((b, i) =>
+        `<span style="font-size:0.7rem;color:var(--arb-dim);">Bet <strong style="color:var(--arb-silver);">${ev.outcomes[i]}</strong> on <strong style="color:var(--arb-cyan);">${b.platformName}</strong></span>`
+    ).join('<span style="color:var(--arb-border);padding:0 0.3rem;">·</span>');
+
+    const watched = isWatched(ev.id);
+
+    return `<div class="arb-card${isHot ? ' hot' : ''}" id="card-${ev.id}">
+        <div class="arb-card-header">
+            <div class="arb-event-meta">
+                <span class="arb-sport-tag sport-${ev.sport.toLowerCase()}">${ev.sport}</span>
+                <div class="arb-event-name">${ev.event}</div>
+                <div class="arb-event-time">${ev.time}</div>
+            </div>
+            <div class="arb-edge-badge">
+                <div class="edge-pct ${edgeClass}">+${arbPct.toFixed(2)}%</div>
+                <div class="edge-label">Guaranteed edge</div>
+            </div>
+        </div>
+
+        <div class="odds-table">
+            <div class="odds-row header">
+                <span>Outcome</span>
+                <span>Polymarket</span>
+                <span>SX Bet</span>
+                <span>Limitless</span>
+            </div>
+            ${oddsRows}
+            <div style="margin-top:0.6rem;display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+                ${bestLabels}
+            </div>
+        </div>
+
+        <div class="arb-calc" id="calc-${ev.id}">
+            <div class="stake-input-row">
+                <label>Total stake:</label>
+                <span style="font-size:0.8rem;color:var(--arb-dim);">$</span>
+                <input type="number" class="stake-input" id="stake-${ev.id}" value="100" min="1" step="1">
+            </div>
+            <div class="stake-splits" id="splits-${ev.id}"></div>
+            <div style="display:flex;justify-content:space-between;margin-top:0.6rem;">
+                <span class="calc-label">Guaranteed return</span>
+                <span class="calc-value green" id="ret-${ev.id}">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;">
+                <span class="calc-label">Guaranteed profit</span>
+                <span class="calc-value green" id="profit-${ev.id}">—</span>
+            </div>
+        </div>
+
+        <div class="arb-card-actions">
+            <button class="btn-execute" onclick="openConfirmModal('${ev.id}')">⚡ Execute Arb</button>
+            <button class="btn-watch${watched ? ' watching' : ''}" id="watch-btn-${ev.id}" onclick="toggleWatch('${ev.id}')">
+                ${watched ? '★ Watching' : '☆ Watch'}
+            </button>
+            <span class="settle-time">Settles ${formatTimeUntil(ev.settles)}</span>
+        </div>
+    </div>`;
+}
+
+function updateCalc(evId) {
+    const ev = scannerData.find(e => e.id === evId);
+    if (!ev) return;
+    const input = document.getElementById(`stake-${evId}`);
+    if (!input) return;
+    const totalStake = parseFloat(input.value) || 100;
+    const splits = calcStakeSplit(ev.arb.best, totalStake);
+    const { arbPct } = ev.arb;
+    const profit = totalStake * arbPct / 100;
+    const totalReturn = totalStake + profit;
+
+    document.getElementById(`profit-${evId}`).textContent = `+$${profit.toFixed(2)}`;
+    document.getElementById(`ret-${evId}`).textContent = `$${totalReturn.toFixed(2)}`;
+
+    const splitsEl = document.getElementById(`splits-${evId}`);
+    if (splitsEl) {
+        splitsEl.innerHTML = splits.map((s, i) => `
+            <div class="stake-split-cell">
+                <div class="ss-platform">${ev.arb.best[i].platformName}</div>
+                <div class="ss-amount">$${s.stake.toFixed(2)}</div>
+                <div class="ss-outcome">${ev.outcomes[i]}</div>
+            </div>`).join('');
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// CONFIRM + EXECUTE
+// ═══════════════════════════════════════════════════════════════════════
+function openConfirmModal(evId) {
+    if (!arbState.email) {
+        showArbLoginModal();
+        return;
+    }
+    const ev = scannerData.find(e => e.id === evId);
+    if (!ev) return;
+    const input = document.getElementById(`stake-${evId}`);
+    const totalStake = parseFloat(input?.value) || 100;
+
+    if (totalStake > arbState.balance) {
+        showToast('Insufficient demo balance.', 'error');
+        return;
+    }
+
+    const splits = calcStakeSplit(ev.arb.best, totalStake);
+    const profit = totalStake * ev.arb.arbPct / 100;
+
+    pendingArb = { ev, totalStake, splits, profit };
+
+    const rows = splits.map((s, i) => `
+        <div class="confirm-detail-row">
+            <span class="cd-label">${ev.arb.best[i].platformName} — ${ev.outcomes[i]}</span>
+            <span class="cd-value">$${s.stake.toFixed(2)} @ ${ev.arb.best[i].odd.toFixed(2)}</span>
+        </div>`).join('');
+
+    document.getElementById('confirm-details-body').innerHTML = `
+        ${rows}
+        <div class="confirm-detail-row">
+            <span class="cd-label">Total staked</span>
+            <span class="cd-value">$${totalStake.toFixed(2)}</span>
+        </div>
+        <div class="confirm-detail-row">
+            <span class="cd-label">Guaranteed profit</span>
+            <span class="cd-value green">+$${profit.toFixed(2)} (+${ev.arb.arbPct.toFixed(2)}%)</span>
+        </div>
+        <div class="confirm-detail-row">
+            <span class="cd-label">Settles</span>
+            <span class="cd-value">${formatTimeUntil(ev.settles)}</span>
+        </div>`;
+
+    document.getElementById('arb-confirm-modal').style.display = 'flex';
+}
+
+function closeConfirmModal() {
+    document.getElementById('arb-confirm-modal').style.display = 'none';
+    pendingArb = null;
+}
+
+function executeConfirmedArb() {
+    if (!pendingArb) return;
+    const { ev, totalStake, splits, profit } = pendingArb;
+
+    // Deduct from balance
+    arbState.balance -= totalStake;
+    arbState.arbCount++;
+
+    // Create position
+    const pos = {
+        id: 'arb-' + Date.now(),
+        eventId: ev.id,
+        event: ev.event,
+        sport: ev.sport,
+        sides: ev.outcomes.map((o, i) => ({
+            outcome: o,
+            platform: ev.arb.best[i].platformName,
+            stake: splits[i].stake,
+            odds: ev.arb.best[i].odd,
+        })),
+        totalStake,
+        guaranteedProfit: profit,
+        arbPct: ev.arb.arbPct,
+        settles: ev.settles,
+        executedAt: Date.now(),
+        status: 'open',
+    };
+
+    openPositions.push(pos);
+    saveState();
+    closeConfirmModal();
+
+    renderPositions();
+    renderSettlement();
+    updateDemoBar();
+    showToast(`Arb executed! +$${profit.toFixed(2)} locked in.`, 'success');
+
+    // Simulate auto-settlement after event time
+    scheduleSettlement(pos);
+}
+
+function autoExecuteArb(ev) {
+    const minEdge = parseFloat(document.getElementById('auto-min-edge').value) || 2;
+    const maxStake = parseFloat(document.getElementById('auto-max-stake').value) || 50;
+    if (ev.arb.arbPct < minEdge) return;
+
+    const totalStake = Math.min(maxStake, arbState.balance * 0.3);
+    if (totalStake < 1 || arbState.balance < totalStake) return;
+
+    // Check not already in this event
+    if (openPositions.find(p => p.eventId === ev.id)) return;
+
+    const splits = calcStakeSplit(ev.arb.best, totalStake);
+    const profit = totalStake * ev.arb.arbPct / 100;
+
+    arbState.balance -= totalStake;
+    arbState.arbCount++;
+
+    const pos = {
+        id: 'arb-auto-' + Date.now(),
+        eventId: ev.id,
+        event: ev.event,
+        sport: ev.sport,
+        sides: ev.outcomes.map((o, i) => ({
+            outcome: o,
+            platform: ev.arb.best[i].platformName,
+            stake: splits[i].stake,
+            odds: ev.arb.best[i].odd,
+        })),
+        totalStake,
+        guaranteedProfit: profit,
+        arbPct: ev.arb.arbPct,
+        settles: ev.settles,
+        executedAt: Date.now(),
+        status: 'open',
+        isAuto: true,
+    };
+
+    openPositions.push(pos);
+    saveState();
+    renderPositions();
+    renderSettlement();
+    updateDemoBar();
+    showToast(`Auto-arb: ${ev.event.split(' vs ')[0]} · +$${profit.toFixed(2)}`, 'info');
+    scheduleSettlement(pos);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// SETTLEMENT — demo simulates settlement after a short delay
+// ═══════════════════════════════════════════════════════════════════════
+function scheduleSettlement(pos) {
+    // In demo: settle after 60 seconds to show the flow
+    const delay = 60000;
+    setTimeout(() => settlePosition(pos.id), delay);
+}
+
+function settlePosition(posId) {
+    const idx = openPositions.findIndex(p => p.id === posId);
+    if (idx === -1) return;
+    const pos = openPositions[idx];
+
+    // Return stake + profit
+    arbState.balance += pos.totalStake + pos.guaranteedProfit;
+    arbState.totalPnl += pos.guaranteedProfit;
+
+    pos.status = 'settled';
+    pos.settledAt = Date.now();
+
+    tradeHistory.unshift(pos);
+    openPositions.splice(idx, 1);
+
+    saveState();
+    renderPositions();
+    renderHistory();
+    renderSettlement();
+    updateDemoBar();
+    showToast(`Settled: +$${pos.guaranteedProfit.toFixed(2)} profit on ${pos.event.split(' vs ')[0]}!`, 'success');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// RENDER POSITIONS
+// ═══════════════════════════════════════════════════════════════════════
+function renderPositions() {
+    const el = document.getElementById('positions-list');
+    if (openPositions.length === 0) {
+        el.innerHTML = `<div class="no-positions"><span>📋</span>No open positions. Execute an arb to start tracking.</div>`;
+        return;
+    }
+    el.innerHTML = openPositions.map(pos => {
+        const timeLeft = pos.settles - Date.now();
+        const totalDuration = pos.settles - pos.executedAt;
+        const fillPct = Math.max(0, Math.min(100, ((totalDuration - timeLeft) / totalDuration) * 100));
+        return `<div class="position-item">
+            <div class="pos-top">
+                <span class="pos-event">${pos.event}</span>
+                <span class="pos-pnl pending">+$${pos.guaranteedProfit.toFixed(2)} locked</span>
+            </div>
+            <div class="pos-details">
+                ${pos.sides.map(s => `<div class="pos-detail-item">
+                    <span class="pd-label">${s.platform}</span>
+                    <span class="pd-value">$${s.stake.toFixed(2)} @ ${s.odds.toFixed(2)}</span>
+                </div>`).join('')}
+                <div class="pos-detail-item">
+                    <span class="pd-label">Edge</span>
+                    <span class="pd-value">+${pos.arbPct.toFixed(2)}%</span>
+                </div>
+            </div>
+            <div class="pos-settle-bar"><div class="pos-settle-fill" style="width:${fillPct}%"></div></div>
+            <div class="pos-settle-label">Settles ${formatTimeUntil(pos.settles)} · Demo settles in ~60s</div>
+        </div>`;
+    }).join('');
+}
+
+function renderSettlement() {
+    const el = document.getElementById('settlement-list');
+    if (openPositions.length === 0) {
+        el.innerHTML = `<div style="text-align:center;padding:1rem 0;color:var(--arb-dim);font-size:0.82rem;">No positions pending settlement.</div>`;
+        return;
+    }
+    el.innerHTML = openPositions.map(pos => `
+        <div style="padding:0.6rem 0;border-bottom:1px solid var(--arb-border);">
+            <div style="font-size:0.78rem;font-weight:600;color:var(--arb-silver);margin-bottom:0.25rem;">${pos.event}</div>
+            <div style="display:flex;justify-content:space-between;font-size:0.72rem;">
+                <span style="color:var(--arb-dim);">Locked: <span style="font-family:var(--mono);color:var(--arb-silver);">$${pos.totalStake.toFixed(2)}</span></span>
+                <span style="color:var(--arb-amber);font-family:var(--mono);">${formatTimeUntil(pos.settles)}</span>
+            </div>
+        </div>`).join('');
+}
+
+function renderHistory() {
+    const el = document.getElementById('history-list');
+    if (tradeHistory.length === 0) {
+        el.innerHTML = `<div style="text-align:center;padding:1rem 0;color:var(--arb-dim);font-size:0.82rem;">No settled trades yet.</div>`;
+        document.getElementById('history-summary').textContent = '0 trades · $0.00 profit';
+        return;
+    }
+    const totalProfit = tradeHistory.reduce((s, t) => s + t.guaranteedProfit, 0);
+    document.getElementById('history-summary').textContent =
+        `${tradeHistory.length} trade${tradeHistory.length !== 1 ? 's' : ''} · +$${totalProfit.toFixed(2)} profit`;
+
+    el.innerHTML = tradeHistory.slice(0, 10).map(t => `
+        <div class="history-item">
+            <div class="history-left">
+                <div class="hi-event">${t.event}</div>
+                <div class="hi-meta">${t.sides.map(s => s.platform).join(' + ')} · ${t.sport} · ${formatDate(t.settledAt)}</div>
+            </div>
+            <div class="history-right">
+                <div class="hi-pnl won">+$${t.guaranteedProfit.toFixed(2)}</div>
+                <div class="hi-stake">Staked $${t.totalStake.toFixed(2)}</div>
+            </div>
+        </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// DEMO ACCOUNT
+// ═══════════════════════════════════════════════════════════════════════
+function showArbLoginModal() {
+    document.getElementById('arb-login-modal').style.display = 'flex';
+}
+function closeArbLoginModal() {
+    document.getElementById('arb-login-modal').style.display = 'none';
+}
+function submitArbLogin() {
+    const email = document.getElementById('arb-email-input').value.trim();
+    if (!email || !email.includes('@')) { showToast('Enter a valid email.', 'error'); return; }
+    arbState.email = email;
+    saveState();
+    closeArbLoginModal();
+    updateAuthUI();
+    showToast(`Demo started · $${ARB_STARTING_BALANCE.toFixed(2)} loaded`, 'success');
+}
+function arbLogout() {
+    arbState = { email: null, balance: ARB_STARTING_BALANCE, totalPnl: 0, arbCount: 0 };
+    openPositions = [];
+    tradeHistory  = [];
+    saveState();
+    updateAuthUI();
+    renderPositions();
+    renderHistory();
+    renderSettlement();
+    updateDemoBar();
+}
+function resetDemoArb() {
+    arbState.balance = ARB_STARTING_BALANCE;
+    arbState.totalPnl = 0;
+    arbState.arbCount = 0;
+    openPositions = [];
+    tradeHistory  = [];
+    saveState();
+    renderPositions();
+    renderHistory();
+    renderSettlement();
+    updateDemoBar();
+    showToast('Demo account reset.', 'info');
+}
+function updateAuthUI() {
+    const loggedIn = !!arbState.email;
+    document.getElementById('arb-login-btn').style.display = loggedIn ? 'none' : '';
+    document.getElementById('arb-logout-btn').style.display = loggedIn ? '' : 'none';
+    document.getElementById('arb-demo-badge').style.display = loggedIn ? '' : 'none';
+    document.getElementById('demo-balance-bar').style.display = loggedIn ? '' : 'none';
+    updateDemoBar();
+}
+function updateDemoBar() {
+    const locked = openPositions.reduce((s, p) => s + p.totalStake, 0);
+    document.getElementById('db-balance').textContent = `$${arbState.balance.toFixed(2)}`;
+    document.getElementById('db-locked').textContent  = `$${locked.toFixed(2)}`;
+    document.getElementById('db-pnl').textContent     = `${arbState.totalPnl >= 0 ? '+' : ''}$${arbState.totalPnl.toFixed(2)}`;
+    document.getElementById('db-count').textContent   = arbState.arbCount;
+    const pnlEl = document.getElementById('db-pnl');
+    pnlEl.className = `ds-value ${arbState.totalPnl >= 0 ? 'green' : 'red'}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// PERSIST (localStorage — demo data only)
+// ═══════════════════════════════════════════════════════════════════════
+function saveState() {
+    try {
+        localStorage.setItem(ARB_DEMO_KEY,    JSON.stringify(arbState));
+        localStorage.setItem(ARB_POS_KEY,     JSON.stringify(openPositions));
+        localStorage.setItem(ARB_HISTORY_KEY, JSON.stringify(tradeHistory));
+    } catch(e) {}
+}
+function loadState() {
+    try {
+        const s = localStorage.getItem(ARB_DEMO_KEY);
+        const p = localStorage.getItem(ARB_POS_KEY);
+        const h = localStorage.getItem(ARB_HISTORY_KEY);
+        if (s) arbState      = JSON.parse(s);
+        if (p) openPositions = JSON.parse(p);
+        if (h) tradeHistory  = JSON.parse(h);
+    } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// WATCH LIST
+// ═══════════════════════════════════════════════════════════════════════
+let watchedIds = new Set(JSON.parse(localStorage.getItem('arb_watched') || '[]'));
+function isWatched(id) { return watchedIds.has(id); }
+function toggleWatch(id) {
+    if (watchedIds.has(id)) { watchedIds.delete(id); }
+    else { watchedIds.add(id); }
+    localStorage.setItem('arb_watched', JSON.stringify([...watchedIds]));
+    renderScanner();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// FILTERS + REFRESH
+// ═══════════════════════════════════════════════════════════════════════
+function setSportFilter(btn) {
+    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    sportFilter = btn.dataset.sport;
+    renderScanner();
+}
+function refreshScanner() {
+    document.getElementById('scanner-status-text').textContent = 'Refreshing...';
+    document.getElementById('scanner-dot').className = 'pulse-dot amber';
+    setTimeout(() => {
+        // Simulate slight odds drift on refresh
+        SPORTS_EVENTS.forEach(ev => {
+            ['poly','sx','limitless'].forEach(p => {
+                ev.odds[p] = ev.odds[p].map(o => {
+                    if (o === null) return null;
+                    return Math.max(0.01, Math.min(0.99, o + (Math.random() - 0.5) * 0.015));
+                });
+            });
+        });
+        renderScanner();
+        updateLastScan();
+        document.getElementById('scanner-status-text').textContent = `${scannerData.length} opportunities found`;
+        document.getElementById('scanner-dot').className = 'pulse-dot';
+    }, 800);
+}
+
+function updateTicker() {
+    const n = scannerData.length;
+    const best = scannerData[0];
+    const msg = n > 0
+        ? `SCANNER LIVE — ${n} arb${n !== 1 ? 's' : ''} found · Best: ${best.arb.arbPct.toFixed(2)}% on ${best.event.split(' vs ')[0]}`
+        : 'SCANNER LIVE — No arbs above threshold';
+    document.getElementById('arb-ticker-text').textContent = msg;
+}
+function updateLastScan() {
+    document.getElementById('last-scan-time').textContent = new Date().toLocaleTimeString();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// AUTO TRADE
+// ═══════════════════════════════════════════════════════════════════════
+function toggleAutoTrade(on) {
+    autoTradeOn = on;
+    if (on) {
+        if (!arbState.email) {
+            document.getElementById('auto-trade-toggle').checked = false;
+            autoTradeOn = false;
+            showArbLoginModal();
+            return;
+        }
+        showToast('Auto-trade enabled — scanning every 30s', 'info');
+        autoInterval = setInterval(() => {
+            if (!autoTradeOn) return;
+            const data = computeScannerData();
+            data.forEach(ev => autoExecuteArb(ev));
+        }, 30000);
+    } else {
+        clearInterval(autoInterval);
+        showToast('Auto-trade disabled', 'info');
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════════════════
+function formatTimeUntil(ts) {
+    const diff = ts - Date.now();
+    if (diff < 0) return 'Settled';
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    if (h >= 48) return `in ${Math.floor(h/24)}d`;
+    if (h >= 1)  return `in ${h}h ${m}m`;
+    return `in ${m}m`;
+}
+function formatDate(ts) {
+    if (!ts) return '—';
+    return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+function showToast(msg, type = 'success') {
+    const t = document.createElement('div');
+    t.className = `arb-toast ${type}`;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3500);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════
+function init() {
+    loadState();
+    updateAuthUI();
+    renderScanner();
+    renderPositions();
+    renderHistory();
+    renderSettlement();
+    updateLastScan();
+
+    // Re-scan every 45s automatically
+    scanInterval = setInterval(() => {
+        refreshScanner();
+    }, 45000);
+
+    // Re-render position timers every 30s
+    setInterval(() => {
+        renderPositions();
+        renderSettlement();
+    }, 30000);
+}
+
+init();
+</script>
+</body>
+</html>
