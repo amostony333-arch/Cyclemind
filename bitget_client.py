@@ -78,6 +78,24 @@ class BitgetClient:
         except requests.exceptions.RequestException as e:
             return {"error": str(e)}
 
+    def _private_post(self, endpoint: str, body: dict = None):
+        """For endpoints that require signed authentication and a POST body."""
+        body = body or {}
+        body_str = json.dumps(body)
+        headers = self._signed_headers("POST", endpoint, body=body_str)
+
+        try:
+            response = self.session.post(
+                f"{self.base_url}{endpoint}",
+                data=body_str,
+                headers=headers,
+                timeout=10
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            return {"error": str(e)}
+
     # ---------- Public Market Data ----------
 
     def get_current_funding_rate(self, symbol: str, product_type: str = "USDT-FUTURES"):
@@ -139,6 +157,68 @@ class BitgetClient:
             "/api/v2/mix/account/accounts",
             params={"productType": product_type}
         )
+
+    # ---------- Trading (requires user's own keys) ----------
+
+    def set_leverage(self, symbol: str, leverage: int, hold_side: str = "long", product_type: str = "USDT-FUTURES"):
+        """
+        Sets leverage for a futures position.
+        hold_side: 'long' or 'short' (used in hedge mode). In one-way mode, pass either.
+        """
+        return self._private_post(
+            "/api/v2/mix/account/set-leverage",
+            body={
+                "symbol": symbol,
+                "productType": product_type,
+                "leverage": str(leverage),
+                "holdSide": hold_side,
+            }
+        )
+
+    def place_futures_order(
+        self,
+        symbol: str,
+        side: str,
+        order_type: str,
+        size: str,
+        price: str = None,
+        trade_side: str = "open",
+        product_type: str = "USDT-FUTURES",
+        client_oid: str = None,
+    ):
+        """
+        Places a futures order.
+        side:        'buy' or 'sell'
+        order_type:  'limit' or 'market'
+        size:        quantity in contracts (as a string)
+        price:       required for limit orders
+        trade_side:  'open' or 'close'
+        client_oid:  optional custom order ID for tracking
+        """
+        body = {
+            "symbol": symbol,
+            "productType": product_type,
+            "side": side,
+            "orderType": order_type,
+            "size": size,
+            "tradeSide": trade_side,
+        }
+        if price:
+            body["price"] = price
+        if client_oid:
+            body["clientOid"] = client_oid
+
+        return self._private_post("/api/v2/mix/order/place-order", body=body)
+
+    def get_futures_positions(self, symbol: str = None, product_type: str = "USDT-FUTURES"):
+        """
+        Returns open futures positions.
+        If symbol is omitted, returns all positions for the given product type.
+        """
+        params = {"productType": product_type}
+        if symbol:
+            params["symbol"] = symbol
+        return self._private_get("/api/v2/mix/position/all-position", params=params)
 
     # ---------- External: Fear & Greed Index ----------
 
