@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CycleMind — Perps</title>
+<style>
+  :root {
+    --bg: #060b16;
+    --surface: #0d1525;
+    --surface2: #111e35;
+    --border: #1a2d4a;
+    --blue: #0078ff;
+    --blue2: #00c6ff;
+    --green: #00a550;
+    --red: #ff3355;
+    --yellow: #f59e0b;
+    --text: #e0ecff;
+    --muted: #4a6fa5;
+    --dim: #90a8c8;
+    --font: 'Inter', system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+
+  /* NAV */
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    height: 56px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .nav-logo {
+    font-size: 1.1rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--blue), var(--blue2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-decoration: none;
+  }
+  .nav-links { display: flex; gap: 20px; align-items: center; }
+  .nav-links a {
+    color: var(--dim);
+    text-decoration: none;
+    font-size: 0.85rem;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover, .nav-links a.active { color: var(--text); }
+  .nav-links a.active { color: var(--blue); }
+  .nav-right { display: flex; gap: 10px; align-items: center; }
+  .auth-badge {
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: rgba(0,165,80,0.15);
+    color: var(--green);
+    border: 1px solid rgba(0,165,80,0.3);
+  }
+  .auth-badge.real {
+    background: rgba(0,120,255,0.15);
+    color: var(--blue);
+    border-color: rgba(0,120,255,0.3);
+  }
+
+  /* LAYOUT */
+  .page { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+
+  .page-header {
+    margin-bottom: 24px;
+  }
+  .page-header h1 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .page-header p { color: var(--dim); font-size: 0.85rem; }
+
+  /* MODE TABS */
+  .mode-tabs {
+    display: flex;
+    gap: 2px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 4px;
+    margin-bottom: 24px;
+    width: fit-content;
+  }
+  .mode-tab {
+    padding: 8px 20px;
+    border-radius: 7px;
+    border: none;
+    background: transparent;
+    color: var(--dim);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .mode-tab.active {
+    background: linear-gradient(135deg, var(--blue), var(--blue2));
+    color: white;
+  }
+
+  /* GRID */
+  .grid { display: grid; gap: 16px; }
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+  .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+  @media (max-width: 768px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  }
+
+  /* CARD */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .card-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  /* SIGNAL CARDS */
+  .signal-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .signal-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .signal-card.long::before { background: var(--green); }
+  .signal-card.short::before { background: var(--red); }
+  .signal-card.neutral::before { background: var(--yellow); }
+
+  .signal-symbol {
+
+font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .signal-price {
+    font-size: 0.85rem;
+    color: var(--dim);
+    margin-bottom: 12px;
+  }
+  .signal-direction {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .signal-direction.long { color: var(--green); }
+  .signal-direction.short { color: var(--red); }
+  .signal-direction.neutral { color: var(--yellow); }
+
+  .signal-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 0.75rem;
+    color: var(--dim);
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .signal-meta span { display: flex; align-items: center; gap: 4px; }
+
+  .quick-trade-btn {
+    width: 100%;
+    padding: 8px;
+    border: none;
+    border-radius: 7px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .quick-trade-btn:hover { opacity: 0.85; }
+  .quick-trade-btn.long { background: var(--green); color: white; }
+  .quick-trade-btn.short { background: var(--red); color: white; }
+  .quick-trade-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* TRADE FORM */
+  .trade-form { display: flex; flex-direction: column; gap: 14px; }
+
+  .form-row { display: flex; gap: 10px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .form-label {
+    font-size: 0.75rem;
+    color: var(--dim);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .form-input, .form-select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px 12px;
+    font-size: 0.9rem;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .form-input:focus, .form-select:focus { border-color: var(--blue); }
+  .form-select option { background: var(--surface2); }
+
+  .side-toggle {
+    display: flex;
+    gap: 2px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 3px;
+  }
+  .side-btn {
+    flex: 1;
+    padding: 8px;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    background: transparent;
+    color: var(--dim);
+    transition: all 0.2s;
+  }
+  .side-btn.active-long { background: var(--green); color: white; }
+  .side-btn.active-short { background: var(--red); color: white; }
+
+  .leverage-slider-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .leverage-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .leverage-val {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--blue);
+  }
+  input[type=range] {
+    width: 100%;
+    accent-color: var(--blue);
+    height: 4px;
+    cursor: pointer;
+  }
+  .leverage-presets { display: flex; gap: 6px; flex-wrap: wrap; }
+  .lev-preset {
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    font-size: 0.75rem;
+    background: var(--surface2);
+    color: var(--dim);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .lev-preset:hover, .lev-preset.active {
+    border-color: var(--blue);
+    color: var(--blue);
+  }
+
+  .order-summary {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 0.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .order-summary-row {
+    display: flex;
+    justify-content: space-between;
+    color: var(--dim);
+  }
+  .order-summary-row span:last-child { color: var(--text); font-weight: 500; }
+
+  .submit-btn {
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    width: 100%;
+    transition: opacity 0.2s;
+  }
+  .submit-btn:hover { opacity: 0.88; }
+  .submit-btn.long { background: linear-gradient(135deg, #00a550, #00d468); color: white; }
+  .submit-btn.short { background: linear-gradient(135deg, #ff3355, #ff6680); color: white; }
+  .submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* POSITIONS TABLE */
+  .positions-list { display: flex; flex-direction: column; gap: 10px; }
+  .position-row {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .pos-left { display: flex; flex-direction: column; gap: 4px; }
+  .pos-symbol { font-weight: 700; font-size: 0.95rem; }
+  .pos-side {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    display: inline-block;
+  }
+  .pos-side.long { background: rgba(0,165,80,0.15); color: var(--green); }
+  .pos-side.short { background: rgba(255,51,85,0.15); color: var(--red); }
+
+  .pos-mid { display: flex; gap: 20px; flex-wrap: wrap; }
+  .pos-stat { display: flex; flex-direction: column; gap: 2px; }
+  .pos-stat-label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; }
+  .pos-stat-val { font-size: 0.85rem; font-weight: 600; }
+
+  .pos-pnl { font-size: 1rem; font-weight: 700; }
+  .pos-pnl.positive { color: var(--green); }
+  .pos-pnl.negative { color: var(--red); }
+
+  .close-pos-btn {
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--red);
+    background: transparent;
+    color: var(--red);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .close-pos-btn:hover { background: var(--red); color: white; }
+
+  /* AGENT PANEL */
+  .agent-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .agent-status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .agent-status-label { font-weight: 600; font-size: 0.9rem; }
+  .agent-status-sub { font-size: 0.75rem; color: var(--dim); margin-top: 2px; }
+
+  .toggle-switch {
+    position: relative;
+    width: 44px;
+    height: 24px;
+  }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-track {
+    position: absolute;
+    inset: 0;
+    background: var(--border);
+    border-radius: 24px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .toggle-track::before {
+    content: '';
+    position: absolute;
+    width: 18px; height: 18px;
+    left: 3px; top: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+  }
+  .toggle-switch input:checked + .toggle-track { background: var(--green); }
+  .toggle-switch input:checked + .toggle-track::before { transform: translateX(20px); }
+
+  .agent-settings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  /* TRADE LOG */
+  .trade-log { display: flex; flex-direction: column; gap: 6px; }
+  .log-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.78rem;
+    padding: 8px 10px;
+    background: var(--surface2);
+    border-radius: 7px;
+    color: var(--dim);
+  }
+  .log-row .log-pnl { font-weight: 600; }
+  .log-row .log-pnl.pos { color: var(--green); }
+  .log-row .log-pnl.neg { color: var(--red); }
+
+  /* MISC */
+  .empty-state {
+    text-align: center;
+    padding: 32px;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  .loading { color: var(--muted); font-size: 0.85rem; padding: 12px 0; }
+  .badge {
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .badge-agent { background: rgba(0,120,255,0.15); color: var(--blue); }
+  .badge-liq { background: rgba(255,51,85,0.2); color: var(--red); }
+
+  .connect-prompt {
+    background: var(--surface2);
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    padding: 24px;
+
+text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  .connect-prompt strong { color: var(--text); display: block; margin-bottom: 6px; }
+  .connect-btn {
+    margin-top: 12px;
+    padding: 8px 20px;
+    background: linear-gradient(135deg, var(--blue), var(--blue2));
+    color: white;
+    border: none;
+    border-radius: 7px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: white;
+    z-index: 9999;
+    animation: fadeup 0.3s ease;
+  }
+  @keyframes fadeup {
+    from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
+
+  .section-gap { margin-bottom: 24px; }
+
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.82rem;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    color: var(--dim);
+  }
+  .info-row:last-child { border-bottom: none; }
+  .info-row span:last-child { color: var(--text); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-logo">CycleMind</a>
+  <div class="nav-links">
+    <a href="index.html">Dashboard</a>
+    <a href="perps.html" class="active">Perps</a>
+  </div>
+  <div class="nav-right">
+    <span id="auth-badge" style="display:none" class="auth-badge">Demo</span>
+    <span id="real-badge" style="display:none" class="auth-badge real">Live</span>
+  </div>
+</nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <h1>Perpetuals Trading</h1>
+    <p>AI-powered futures on BTC, ETH, SOL — demo or live via Bitget</p>
+  </div>
+
+  <!-- MODE TABS -->
+  <div class="mode-tabs">
+    <button class="mode-tab active" id="tab-demo" onclick="switchMode('demo')">Demo Account</button>
+    <button class="mode-tab" id="tab-real" onclick="switchMode('real')">Real Account</button>
+  </div>
+
+  <!-- ============ DEMO MODE ============ -->
+  <div id="demo-mode">
+
+    <!-- Auth gate -->
+    <div id="demo-gate" style="display:none">
+      <div class="connect-prompt">
+        <strong>Sign in to access demo perps</strong>
+        Enter your email on the main dashboard to get a magic link sign-in.
+        <br>
+        <button class="connect-btn" onclick="window.location.href='index.html'">Go to Dashboard</button>
+      </div>
+    </div>
+
+    <div id="demo-content" style="display:none">
+
+      <!-- Signal Overview -->
+      <div class="section-gap">
+        <div class="card-title" style="margin-bottom:12px;">AI Signals</div>
+        <div class="grid grid-3" id="signal-cards">
+          <div class="loading">Loading signals...</div>
+        </div>
+      </div>
+
+      <div class="grid grid-2 section-gap">
+
+        <!-- Trade Form -->
+        <div class="card">
+          <div class="card-title">Open Position</div>
+          <div class="trade-form">
+
+            <!-- Symbol -->
+            <div class="form-group">
+              <label class="form-label">Asset</label>
+              <select class="form-select" id="demo-symbol" onchange="onFormChange()">
+                <option value="BTC">Bitcoin (BTC)</option>
+                <option value="ETH">Ethereum (ETH)</option>
+                <option value="SOL">Solana (SOL)</option>
+              </select>
+            </div>
+
+            <!-- Side -->
+            <div class="form-group">
+              <label class="form-label">Direction</label>
+              <div class="side-toggle">
+                <button class="side-btn active-long" id="btn-long" onclick="setSide('long')">▲ Long</button>
+                <button class="side-btn" id="btn-short" onclick="setSide('short')">▼ Short</button>
+              </div>
+            </div>
+
+<!-- Size -->
+            <div class="form-group">
+              <label class="form-label">Margin (USD)</label>
+              <input class="form-input" type="number" id="demo-size" value="100" min="10" step="10" oninput="onFormChange()">
+            </div>
+
+            <!-- Leverage -->
+            <div class="form-group">
+              <label class="form-label">Leverage</label>
+              <div class="leverage-slider-wrap">
+                <div class="leverage-row">
+                  <span style="font-size:0.8rem;color:var(--dim)">1x</span>
+                  <span class="leverage-val" id="lev-display">10x</span>
+                  <span style="font-size:0.8rem;color:var(--dim)">100x</span>
+                </div>
+                <input type="range" id="demo-leverage" min="1" max="100" value="10" oninput="onLeverageChange(this.value)">
+                <div class="leverage-presets">
+                  <button class="lev-preset" onclick="setLeverage(1)">1x</button>
+                  <button class="lev-preset" onclick="setLeverage(3)">3x</button>
+                  <button class="lev-preset active" onclick="setLeverage(10)">10x</button>
+                  <button class="lev-preset" onclick="setLeverage(25)">25x</button>
+                  <button class="lev-preset" onclick="setLeverage(50)">50x</button>
+                  <button class="lev-preset" onclick="setLeverage(100)">100x</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Order Summary -->
+            <div class="order-summary">
+              <div class="order-summary-row"><span>Margin</span><span id="sum-margin">$100</span></div>
+              <div class="order-summary-row"><span>Notional</span><span id="sum-notional">$1,000</span></div>
+              <div class="order-summary-row"><span>Est. Liquidation</span><span id="sum-liq">—</span></div>
+              <div class="order-summary-row"><span>Current Price</span><span id="sum-price">—</span></div>
+            </div>
+
+            <button class="submit-btn long" id="demo-submit-btn" onclick="openDemoPerp()">Open Long</button>
+          </div>
+        </div>
+
+        <!-- Agent Panel -->
+        <div>
+          <div class="agent-panel section-gap">
+            <div class="agent-status-row">
+              <div>
+                <div class="agent-status-label">AI Trading Agent</div>
+                <div class="agent-status-sub">Auto-trades perps based on regime + signals</div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="agent-toggle" onchange="togglePerpAgent()">
+                <span class="toggle-track"></span>
+              </label>
+            </div>
+
+            <div class="agent-settings-grid">
+              <div class="form-group">
+                <label class="form-label">Agent Leverage</label>
+                <select class="form-select" id="agent-leverage">
+                  <option value="3">3x</option>
+                  <option value="5" selected>5x</option>
+                  <option value="10">10x</option>
+                  <option value="20">20x</option>
+                  <option value="50">50x</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Position Size</label>
+                <input class="form-input" type="number" id="agent-size" value="100" min="10" step="10" placeholder="USD">
+              </div>
+            </div>
+            <button onclick="saveAgentSettings()" style="margin-top:12px;padding:8px 16px;background:var(--blue);color:white;border:none;border-radius:7px;font-size:0.82rem;font-weight:600;cursor:pointer;width:100%">
+              Save Agent Settings
+            </button>
+          </div>
+
+          <!-- Balance -->
+          <div class="card">
+            <div class="card-title">Demo Balance</div>
+            <div id="demo-balance-display">
+              <div class="loading">Loading...</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+<!-- Open Positions -->
+      <div class="card section-gap">
+        <div class="card-title">Open Positions</div>
+        <div id="open-positions">
+          <div class="loading">Loading positions...</div>
+        </div>
+      </div>
+
+      <!-- Trade Log -->
+      <div class="card">
+        <div class="card-title">Trade History</div>
+        <div id="perp-trade-log">
+          <div class="loading">Loading...</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============ REAL MODE ============ -->
+  <div id="real-mode" style="display:none">
+
+    <div id="real-gate" style="display:none">
+      <div class="connect-prompt">
+        <strong>Connect your Bitget account</strong>
+        Go to the main dashboard and connect your Bitget API key to trade live.
+        <br>
+        <button class="connect-btn" onclick="window.location.href='index.html'">Connect Bitget</button>
+      </div>
+    </div>
+
+    <div id="real-content" style="display:none">
+
+      <!-- Signal Overview (same component) -->
+      <div class="section-gap">
+        <div class="card-title" style="margin-bottom:12px;">AI Signals</div>
+        <div class="grid grid-3" id="real-signal-cards">
+          <div class="loading">Loading signals...</div>
+        </div>
+      </div>
+
+      <div class="grid grid-2 section-gap">
+
+        <!-- Real Trade Form -->
+        <div class="card">
+          <div class="card-title">Open Live Position</div>
+          <div class="trade-form">
+
+            <div class="form-group">
+              <label class="form-label">Asset</label>
+              <select class="form-select" id="real-symbol" onchange="onRealFormChange()">
+                <option value="BTC">Bitcoin (BTC)</option>
+                <option value="ETH">Ethereum (ETH)</option>
+                <option value="SOL">Solana (SOL)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Direction</label>
+              <div class="side-toggle">
+                <button class="side-btn active-long" id="real-btn-long" onclick="setRealSide('long')">▲ Long</button>
+                <button class="side-btn" id="real-btn-short" onclick="setRealSide('short')">▼ Short</button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Margin (USD)</label>
+              <input class="form-input" type="number" id="real-size" value="50" min="5" step="10" oninput="onRealFormChange()">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Leverage</label>
+              <div class="leverage-slider-wrap">
+                <div class="leverage-row">
+                  <span style="font-size:0.8rem;color:var(--dim)">1x</span>
+                  <span class="leverage-val" id="real-lev-display">5x</span>
+                  <span style="font-size:0.8rem;color:var(--dim)">100x</span>
+                </div>
+                <input type="range" id="real-leverage" min="1" max="100" value="5" oninput="onRealLeverageChange(this.value)">
+                <div class="leverage-presets">
+                  <button class="lev-preset" onclick="setRealLeverage(1)">1x</button>
+                  <button class="lev-preset" onclick="setRealLeverage(3)">3x</button>
+                  <button class="lev-preset active" onclick="setRealLeverage(5)">5x</button>
+                  <button class="lev-preset" onclick="setRealLeverage(10)">10x</button>
+                  <button class="lev-preset" onclick="setRealLeverage(25)">25x</button>
+                  <button class="lev-preset" onclick="setRealLeverage(50)">50x</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="order-summary">
+              <div class="order-summary-row"><span>Margin</span><span id="real-sum-margin">$50</span></div>
+
+<div class="order-summary-row"><span>Notional</span><span id="real-sum-notional">$250</span></div>
+              <div class="order-summary-row"><span>Est. Liquidation</span><span id="real-sum-liq">—</span></div>
+              <div class="order-summary-row"><span>Current Price</span><span id="real-sum-price">—</span></div>
+            </div>
+
+            <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:10px;font-size:0.75rem;color:var(--yellow);">
+              ⚠️ This executes a real order on your Bitget account using real funds.
+            </div>
+
+            <button class="submit-btn long" id="real-submit-btn" onclick="openRealPerp()">Open Long (Live)</button>
+          </div>
+        </div>
+
+        <!-- Real Positions -->
+        <div class="card">
+          <div class="card-title">Live Positions</div>
+          <div id="real-positions">
+            <div class="loading">Loading live positions...</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API_BASE = "https://cyclemind-production.up.railway.app/api";
+
+let emailUser = null;
+let userCredentials = null;
+let currentMode = "demo";
+let demoSide = "long";
+let realSide = "long";
+let livePrices = {};
+let signals = {};
+
+// ==================== INIT ====================
+
+window.addEventListener("DOMContentLoaded", () => {
+  const savedEmail = localStorage.getItem("email_user");
+  const savedCreds = localStorage.getItem("bitget_creds");
+
+  if (savedEmail) {
+    emailUser = JSON.parse(savedEmail);
+    document.getElementById("auth-badge").style.display = "inline";
+  }
+  if (savedCreds) {
+    userCredentials = JSON.parse(savedCreds);
+    document.getElementById("real-badge").style.display = "inline";
+  }
+
+  renderAuthState();
+  loadSignals();
+  loadDemoPositions();
+  loadDemoBalance();
+  loadAgentSettings();
+  loadRealPositions();
+  loadPrices();
+
+  setInterval(() => {
+    loadSignals();
+    loadDemoPositions();
+    loadDemoBalance();
+    loadPrices();
+    loadRealPositions();
+  }, 15000);
+});
+
+function renderAuthState() {
+  if (currentMode === "demo") {
+    if (emailUser) {
+      document.getElementById("demo-gate").style.display = "none";
+      document.getElementById("demo-content").style.display = "block";
+    } else {
+      document.getElementById("demo-gate").style.display = "block";
+      document.getElementById("demo-content").style.display = "none";
+    }
+  } else {
+    if (userCredentials) {
+      document.getElementById("real-gate").style.display = "none";
+      document.getElementById("real-content").style.display = "block";
+    } else {
+      document.getElementById("real-gate").style.display = "block";
+      document.getElementById("real-content").style.display = "none";
+    }
+  }
+}
+
+function switchMode(mode) {
+  currentMode = mode;
+  document.getElementById("demo-mode").style.display = mode === "demo" ? "block" : "none";
+  document.getElementById("real-mode").style.display = mode === "real" ? "block" : "none";
+  document.getElementById("tab-demo").classList.toggle("active", mode === "demo");
+  document.getElementById("tab-real").classList.toggle("active", mode === "real");
+  renderAuthState();
+  if (mode === "real") loadRealPositions();
+}
+
+// ==================== PRICES ====================
+
+async function loadPrices() {
+  try {
+    const res = await fetch(`${API_BASE}/prices`);
+    const data = await res.json();
+    livePrices = {
+      BTC: data.bitcoin?.usd || 0,
+      ETH: data.ethereum?.usd || 0,
+      SOL: data.solana?.usd || 0,
+    };
+    onFormChange();
+    onRealFormChange();
+  } catch (e) {}
+}
+
+// ==================== SIGNALS ====================
+
+async function loadSignals() {
+  try {
+    const res = await fetch(`${API_BASE}/perps/signal-overview`);
+    const data = await res.json();
+    signals = data;
+    renderSignalCards("signal-cards");
+    renderSignalCards("real-signal-cards");
+  } catch (e) {}
+}
+
+function renderSignalCards(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const coins = ["BTC", "ETH", "SOL"];
+  let html = "";
+
+  coins.forEach(coin => {
+    const s = signals[coin];
+    if (!s || s.error) {
+      html += `<div class="signal-card neutral"><div class="signal-symbol">${coin}</div><div class="signal-price">Signal unavailable</div></div>`;
+      return;
+    }
+
+    const dirClass = s.direction === "long" ? "long" : s.direction === "short" ? "short" : "neutral";
+    const dirLabel = s.direction === "long" ? "▲ LONG" : s.direction === "short" ? "▼ SHORT" : "— NEUTRAL";
+    const price = s.current_price ? `$${s.current_price.toLocaleString()}` : "—";
+    const isDemo = currentMode === "demo" && emailUser;
+    const isReal = currentMode === "real" && userCredentials;
+    const canTrade = isDemo || isReal;
+
+    html += `
+      <div class="signal-card ${dirClass}">
+        <div class="signal-symbol">${coin}</div>
+        <div class="signal-price">${price}</div>
+        <div class="signal-direction ${dirClass}">${dirLabel}</div>
+        <div class="signal-meta">
+          <span>Strength: ${s.strength}/5</span>
+          <span>Lev: ${s.suggested_leverage}x</span>
+          <span>Funding: ${s.funding_rate}%</span>
+        </div>
+        ${canTrade && s.direction !== "neutral" ? `
+          <button class="quick-trade-btn ${dirClass}" onclick="quickTrade('${coin}','${s.direction}',${s.suggested_leverage})">
+            Quick ${s.direction === 'long' ? 'Long' : 'Short'} ${s.suggested_leverage}x
+          </button>
+        ` : `<button class="quick-trade-btn" disabled>No clear signal</button>`}
+      </div>
+    `;
+  });
+
+  el.innerHTML = html;
+}
+
+function quickTrade(coin, direction, leverage) {
+  if (currentMode === "demo") {
+    document.getElementById("demo-symbol").value = coin;
+    setSide(direction);
+    setLeverage(leverage);
+    onFormChange();
+    document.getElementById("demo-submit-btn").scrollIntoView({ behavior: "smooth" });
+  } else {
+    document.getElementById("real-symbol").value = coin;
+    setRealSide(direction);
+    setRealLeverage(leverage);
+    onRealFormChange();
+    document.getElementById("real-submit-btn").scrollIntoView({ behavior: "smooth" });
+  }
+}
+
+// ==================== DEMO FORM ====================
+
+function setSide(side) {
+  demoSide = side;
+  const longBtn = document.getElementById("btn-long");
+  const shortBtn = document.getElementById("btn-short");
+  longBtn.className = "side-btn" + (side === "long" ? " active-long" : "");
+  shortBtn.className = "side-btn" + (side === "short" ? " active-short" : "");
+  const submitBtn = document.getElementById("demo-submit-btn");
+  submitBtn.className = `submit-btn ${side}`;
+  submitBtn.textContent = side === "long" ? "Open Long" : "Open Short";
+  onFormChange();
+}
+
+function setLeverage(val) {
+  document.getElementById("demo-leverage").value = val;
+  onLeverageChange(val);
+  document.querySelectorAll(".leverage-presets .lev-preset").forEach(btn => {
+    btn.classList.toggle("active", btn.textContent === `${val}x`);
+  });
+}
+
+function onLeverageChange(val) {
+  document.getElementById("lev-display").textContent = `${val}x`;
+  onFormChange();
+}
+
+function onFormChange() {
+  const size = parseFloat(document.getElementById("demo-size")?.value || 0);
+  const lev = parseInt(document.getElementById("demo-leverage")?.value || 10);
+  const symbol = document.getElementById("demo-symbol")?.value || "BTC";
+  const price = livePrices[symbol] || 0;
+  const notional = size * lev;
+
+  document.getElementById("sum-margin").textContent = `$${size.toLocaleString()}`;
+  document.getElementById("sum-notional").textContent = `$${notional.toLocaleString()}`;
+  document.getElementById("sum-price").textContent = price ? `$${price.toLocaleString()}` : "—";
+
+  if (price && lev) {
+    const liqPct = 1 / lev * 0.9;
+    const liq = demoSide === "long"
+      ? (price * (1 - liqPct)).toFixed(2)
+      : (price * (1 + liqPct)).toFixed(2);
+    document.getElementById("sum-liq").textContent = `$${parseFloat(liq).toLocaleString()}`;
+  }
+}
+
+// ==================== DEMO TRADE ====================
+
+async function openDemoPerp() {
+  if (!emailUser) return showToast("Sign in first", true);
+  const symbol = document.getElementById("demo-symbol").value;
+  const size = parseFloat(document.getElementById("demo-size").value);
+  const leverage = parseInt(document.getElementById("demo-leverage").value);
+
+  if (!size || size < 10) return showToast("Minimum margin is $10", true);
+
+  const btn = document.getElementById("demo-submit-btn");
+  btn.disabled = true;
+  btn.textContent = "Opening...";
+
+  try {
+    const res = await fetch(`${API_BASE}/perps/demo/open`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: emailUser.email, symbol, side: demoSide, size_usd: size, leverage }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to open");
+    showToast(`✅ ${demoSide.toUpperCase()} ${symbol} opened @ $${data.position.entry_price.toLocaleString()}`);
+    loadDemoPositions();
+    loadDemoBalance();
+  } catch (e) {
+    showToast(`❌ ${e.message}`, true);
+  } finally {
+    btn.disabled = false;
+    setSide(demoSide);
+  }
+}
+
+async function closeDemoPerp(positionId) {
+  if (!emailUser) return;
+  try {
+    const res = await fetch(`${API_BASE}/perps/demo/close`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: emailUser.email, position_id: positionId }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Close failed");
+    const pnl = data.pnl_usd;
+    const sign = pnl >= 0 ? "+" : "";
+    showToast(`${pnl >= 0 ? "✅" : "❌"} Closed: ${sign}$${pnl.toFixed(2)} PnL`);
+    loadDemoPositions();
+    loadDemoBalance();
+  } catch (e) {
+    showToast(`❌ ${e.message}`, true);
+  }
+}
+
+async function loadDemoPositions() {
+  if (!emailUser) return;
+  try {
+    const res = await fetch(`${API_BASE}/perps/demo/positions/${encodeURIComponent(emailUser.email)}`);
+    const data = await res.json();
+    renderDemoPositions(data.positions || {});
+    renderTradeLog(data.trade_log || []);
+  } catch (e) {}
+}
+
+function renderDemoPositions(positions) {
+  const el = document.getElementById("open-positions");
+  const entries = Object.entries(positions);
+
+  if (!entries.length) {
+    el.innerHTML = `<div class="empty-state">No open positions — use the form to open one.</div>`;
+    return;
+  }
+
+  let html = `<div class="positions-list">`;
+  entries.forEach(([id, pos]) => {
+    const pnlClass = pos.pnl_usd >= 0 ? "positive" : "negative";
+    const pnlSign = pos.pnl_usd >= 0 ? "+" : "";
+    const isLiq = pos.is_liquidated;
+
+    html += `
+      <div class="position-row" style="${isLiq ? 'border-color:var(--red);opacity:0.7' : ''}">
+        <div class="pos-left">
+          <div class="pos-symbol">
+            ${pos.symbol}
+            ${pos.is_agent ? '<span class="badge badge-agent">Agent</span>' : ''}
+            ${isLiq ? '<span class="badge badge-liq">Liquidated</span>' : ''}
+          </div>
+          <span class="pos-side ${pos.side}">${pos.side.toUpperCase()} ${pos.leverage}x</span>
+        </div>
+        <div class="pos-mid">
+          <div class="pos-stat">
+            <span class="pos-stat-label">Entry</span>
+            <span class="pos-stat-val">$${pos.entry_price.toLocaleString()}</span>
+          </div>
+          <div class="pos-stat">
+            <span class="pos-stat-label">Mark</span>
+            <span class="pos-stat-val">$${pos.current_price.toLocaleString()}</span>
+          </div>
+          <div class="pos-stat">
+            <span class="pos-stat-label">Notional</span>
+            <span class="pos-stat-val">$${pos.notional_usd.toLocaleString()}</span>
+          </div>
+          <div class="pos-stat">
+
+<span class="pos-stat-label">Liq. Price</span>
+            <span class="pos-stat-val" style="color:var(--red)">$${pos.liquidation_price.toLocaleString()}</span>
+          </div>
+        </div>
+        <div class="pos-pnl ${pnlClass}">${pnlSign}$${pos.pnl_usd.toFixed(2)} (${pnlSign}${pos.pnl_pct.toFixed(2)}%)</div>
+        <button class="close-pos-btn" onclick="closeDemoPerp('${id}')">Close</button>
+      </div>
+    `;
+  });
+  html += `</div>`;
+  el.innerHTML = html;
+}
+
+function renderTradeLog(log) {
+  const el = document.getElementById("perp-trade-log");
+  if (!log.length) {
+    el.innerHTML = `<div class="empty-state">No closed trades yet.</div>`;
+    return;
+  }
+  let html = `<div class="trade-log">`;
+  [...log].reverse().slice(0, 10).forEach(t => {
+    const pnlClass = t.pnl_usd >= 0 ? "pos" : "neg";
+    const pnlSign = t.pnl_usd >= 0 ? "+" : "";
+    html += `
+      <div class="log-row">
+        <span>${t.side.toUpperCase()} ${t.symbol} ${t.leverage}x</span>
+        <span>$${t.entry_price.toLocaleString()} → $${t.exit_price.toLocaleString()}</span>
+        <span class="log-pnl ${pnlClass}">${pnlSign}$${t.pnl_usd.toFixed(2)}</span>
+      </div>
+    `;
+  });
+  html += `</div>`;
+  el.innerHTML = html;
+}
+
+async function loadDemoBalance() {
+  if (!emailUser) return;
+  try {
+    const res = await fetch(`${API_BASE}/demo/account/${encodeURIComponent(emailUser.email)}`);
+    const data = await res.json();
+    const returnColor = data.total_return_pct >= 0 ? "var(--green)" : "var(--red)";
+    const sign = data.total_return_pct >= 0 ? "+" : "";
+    document.getElementById("demo-balance-display").innerHTML = `
+      <div class="info-row"><span>Cash (USDT)</span><span>$${data.cash_usdt.toLocaleString()}</span></div>
+      <div class="info-row"><span>Total Equity</span><span style="color:${returnColor}">$${data.total_equity_usd.toLocaleString()} (${sign}${data.total_return_pct}%)</span></div>
+      <div class="info-row"><span>Starting Balance</span><span>$${data.starting_balance.toLocaleString()}</span></div>
+    `;
+  } catch (e) {}
+}
+
+// ==================== AGENT ====================
+
+async function loadAgentSettings() {
+  if (!emailUser) return;
+  try {
+    const res = await fetch(`${API_BASE}/perps/agent-settings/${encodeURIComponent(emailUser.email)}`);
+    const data = await res.json();
+    document.getElementById("agent-toggle").checked = data.perp_auto_trade_enabled;
+    document.getElementById("agent-leverage").value = data.perp_leverage;
+    document.getElementById("agent-size").value = data.perp_size_usd;
+  } catch (e) {}
+}
+
+async function togglePerpAgent() {
+  if (!emailUser) return;
+  const enabled = document.getElementById("agent-toggle").checked;
+  try {
+    const res = await fetch(`${API_BASE}/perps/agent-settings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: emailUser.email, perp_auto_trade_enabled: enabled }),
+    });
+    if (!res.ok) throw new Error("Failed to update agent");
+    showToast(enabled ? "✅ Perp agent enabled" : "Agent disabled");
+  } catch (e) {
+    showToast(`❌ ${e.message}`, true);
+    document.getElementById("agent-toggle").checked = !enabled;
+  }
+}
+
+async function saveAgentSettings() {
+  if (!emailUser) return;
+  const leverage = parseInt(document.getElementById("agent-leverage").value);
+  const size = parseFloat(document.getElementById("agent-size").value);
+  try {
+    const res = await fetch(`${API_BASE}/perps/agent-settings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: emailUser.email, perp_leverage: leverage, perp_size_usd: size }),
+    });
+    if (!res.ok) throw new Error("Failed to save");
+    showToast("✅ Agent settings saved");
+  } catch (e) {
+    showToast(`❌ ${e.message}`, true);
+  }
+}
+
+// ==================== REAL FORM ====================
+
+function setRealSide(side) {
+  realSide = side;
+  const longBtn = document.getElementById("real-btn-long");
+  const shortBtn = document.getElementById("real-btn-short");
+  longBtn.className = "side-btn" + (side === "long" ? " active-long" : "");
+  shortBtn.className = "side-btn" + (side === "short" ? " active-short" : "");
+  const submitBtn = document.getElementById("real-submit-btn");
+  submitBtn.className = `submit-btn ${side}`;
+  submitBtn.textContent = side === "long" ? "Open Long (Live)" : "Open Short (Live)";
+  onRealFormChange();
+}
+
+function setRealLeverage(val) {
+  document.getElementById("real-leverage").value = val;
+  onRealLeverageChange(val);
+}
+
+function onRealLeverageChange(val) {
+  document.getElementById("real-lev-display").textContent = `${val}x`;
+  onRealFormChange();
+}
+
+function onRealFormChange() {
+  const size = parseFloat(document.getElementById("real-size")?.value || 0);
+  const lev = parseInt(document.getElementById("real-leverage")?.value || 5);
+  const symbol = document.getElementById("real-symbol")?.value || "BTC";
+  const price = livePrices[symbol] || 0;
+  const notional = size * lev;
+
+  document.getElementById("real-sum-margin").textContent = `$${size.toLocaleString()}`;
+  document.getElementById("real-sum-notional").textContent = `$${notional.toLocaleString()}`;
+  document.getElementById("real-sum-price").textContent = price ? `$${price.toLocaleString()}` : "—";
+
+  if (price && lev) {
+    const liqPct = 1 / lev * 0.9;
+    const liq = realSide === "long"
+      ? (price * (1 - liqPct)).toFixed(2)
+      : (price * (1 + liqPct)).toFixed(2);
+    document.getElementById("real-sum-liq").textContent = `$${parseFloat(liq).toLocaleString()}`;
+  }
+}
+
+// ==================== REAL TRADE ====================
+
+async function openRealPerp() {
+  if (!userCredentials) return showToast("Connect Bitget account first", true);
+  const symbol = document.getElementById("real-symbol").value;
+  const size = parseFloat(document.getElementById("real-size").value);
+  const leverage = parseInt(document.getElementById("real-leverage").value);
+
+  if (!confirm(`Open REAL ${realSide.toUpperCase()} ${symbol} ${leverage}x with $${size} margin on Bitget?\n\nThis uses REAL funds.`)) return;
+
+  const btn = document.getElementById("real-submit-btn");
+  btn.disabled = true;
+  btn.textContent = "Placing order...";
+
+  try {
+    const res = await fetch(`${API_BASE}/perps/real/open`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key: userCredentials.api_key,
+        api_secret: userCredentials.api_secret,
+        passphrase: userCredentials.passphrase,
+        symbol, side: realSide, size_usd: size, leverage,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Order failed");
+    showToast(`✅ ${realSide.toUpperCase()} ${symbol} opened @ $${data.entry_price.toLocaleString()}`);
+    loadRealPositions();
+  } catch (e) {
+    showToast(`❌ ${e.message}`, true);
+  } finally {
+    btn.disabled = false;
+    setRealSide(realSide);
+  }
+}
+
+async function closeRealPerp(symbol, side) {
+  if (!userCredentials) return;
+  if (!confirm(`Close REAL ${side.toUpperCase()} ${symbol} position? This is irreversible.`)) return;
+  try {
+    const res = await fetch(`${API_BASE}/perps/real/close`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key: userCredentials.api_key,
+        api_secret: userCredentials.api_secret,
+        passphrase: userCredentials.passphrase,
+        symbol, position_side: side,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Close failed");
+    showToast("✅ Position closed");
+    loadRealPositions();
+  } catch (e) {
+    showToast(`❌ ${e.message}`, true);
+  }
+}
+
+async function loadRealPositions() {
+  if (!userCredentials) return;
+  const el = document.getElementById("real-positions");
+  try {
+    const params = new URLSearchParams({
+      api_key: userCredentials.api_key,
+      api_secret: userCredentials.api_secret,
+      passphrase: userCredentials.passphrase,
+    });
+    const res = await fetch(`${API_BASE}/perps/real/positions?${params}`);
+    const data = await res.json();
+    const positions = data.positions || {};
+    const entries = Object.entries(positions);
+
+    if (!entries.length) {
+      el.innerHTML = `<div class="empty-state">No open live positions.</div>`;
+      return;
+    }
+
+    let html = `<div class="positions-list">`;
+    entries.forEach(([coin, posArr]) => {
+      posArr.forEach(pos => {
+        const side = pos.holdSide?.toLowerCase() || "long";
+        const entry = parseFloat(pos.openPriceAvg || 0);
+        const markPrice = pos.current_price || 0;
+        const total = parseFloat(pos.total || 0);
+        const upl = parseFloat(pos.unrealizedPL || 0);
+        const uplClass = upl >= 0 ? "positive" : "negative";
+        const uplSign = upl >= 0 ? "+" : "";
+
+        html += `
+          <div class="position-row">
+            <div class="pos-left">
+              <div class="pos-symbol">${coin}</div>
+              <span class="pos-side ${side}">${side.toUpperCase()} ${pos.leverage || '—'}x</span>
+            </div>
+            <div class="pos-mid">
+              <div class="pos-stat">
+                <span class="pos-stat-label">Entry</span>
+                <span class="pos-stat-val">$${entry.toLocaleString()}</span>
+              </div>
+              <div class="pos-stat">
+                <span class="pos-stat-label">Mark</span>
+                <span class="pos-stat-val">$${markPrice.toLocaleString()}</span>
+              </div>
+              <div class="pos-stat">
+                <span class="pos-stat-label">Size</span>
+                <span class="pos-stat-val">${total}</span>
+              </div>
+            </div>
+            <div class="pos-pnl ${uplClass}">${uplSign}$${upl.toFixed(2)}</div>
+            <button class="close-pos-btn" onclick="closeRealPerp('${coin}','${side}')">Close</button>
+          </div>
+        `;
+      });
+    });
+    html += `</div>`;
+    el.innerHTML = html;
+  } catch (e) {
+    el.innerHTML = `<div class="empty-state" style="color:var(--red)">Could not load live positions.</div>`;
+  }
+}
+
+// ==================== TOAST ====================
+
+function showToast(msg, isError = false) {
+  const t = document.createElement("div");
+  t.className = "toast";
+  t.style.background = isError ? "#ff3355" : "#00a550";
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+</script>
+</body>
+</html>
