@@ -264,7 +264,7 @@ Users were losing signal context by the time they navigated to the trade form. S
 
 ## What Is Still Missing / Next Steps
 
-### v7 Roadmap
+### v8 Roadmap
 
 - [ ] Full Bitget Playbook integration — structured multi-step strategy execution
 - [ ] Multi-agent infrastructure — specialist agents for regime, signals, execution, and risk running in parallel
