@@ -320,9 +320,9 @@ Bitget's infrastructure makes this possible for independent builders. Reliable o
 - [x] Live demo publicly accessible — [cyclemind.vercel.app](https://cyclemind.vercel.app) (no login required)
 - [x] GitHub repo — [github.com/amostony333-arch/Cyclemind](https://github.com/amostony333-arch/Cyclemind)
 - [x] Project post with #BitgetHackathon and @BitgetAI — [@cyclemindarc on X](https://x.com/cyclemindarc)
-- [ ] Repost of official Bitget campaign post
-- [ ] Live / paper trading log (upload to GitHub)
-- [ ] Demo video
+- [x] Repost of official Bitget campaign post
+- [x] Live / paper trading log (upload to GitHub)
+- [x] Demo video
 
 ---
 
