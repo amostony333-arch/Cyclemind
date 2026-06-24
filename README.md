@@ -3,7 +3,7 @@
 
 > AI-powered perpetual futures trading on BTC, ETH, SOL — demo or live via Bitget
 
-🌐 **Live Demo:** [cyclemind.vercel.app](https://cyclemind.vercel.app) *(no login required)*
+🌐 **Live Demo:** [cyclemind.vercel.app](https://cyclemind.vercel.app) 
 🐦 **X:** [@cyclemindarc](https://x.com/cyclemindarc)
 📱 **Telegram:** @defitony0x
 👤 **Builder:** [@defitony0x](https://x.com/defitony0x)
