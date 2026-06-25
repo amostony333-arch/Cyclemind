@@ -10,17 +10,29 @@
 
 ---
 
+## Demo Video
+
+▶️ [Watch the full platform demo on X](https://x.com/i/status/2070054549256122787)
+
+---
+
+## Submission Links
+
+| Item | Link |
+|------|------|
+| Live Demo | [cyclemind.vercel.app](https://cyclemind.vercel.app) |
+| GitHub | [github.com/amostony333-arch/Cyclemind](https://github.com/amostony333-arch/Cyclemind) |
+| Paper Trading Log | [TRADE_LOG.md](https://github.com/amostony333-arch/Cyclemind/blob/main/TRADE_LOG.md) |
+| Project Post | [x.com/i/status/2070054549256122787](https://x.com/i/status/2070054549256122787) |
+| Repost of Official Bitget Campaign | [x.com/i/status/2069540691693256825](https://x.com/i/status/2069540691693256825) |
+
+---
+
 ## Why We Built It
 
-Most retail crypto traders lose not because they lack access to data — but because they can't process it fast enough or consistently enough to act on it. By the time a trader reads the chart, checks funding rates, glances at Fear & Greed, and decides on a size, the opportunity is gone or the risk profile has changed.
+Most retail crypto traders lose not because they lack data — but because they can't process it fast enough or consistently enough to act on it. By the time a trader reads the chart, checks funding rates, glances at Fear & Greed, and decides on a size, the opportunity is gone or the risk profile has changed.
 
-CycleMind closes that gap. It is a single platform that:
-
-- Detects the current market regime in real time
-- Scores multi-layer signals across sentiment, technicals, derivatives, and on-chain data
-- Auto-executes perpetual futures trades via Bitget's API
-- Scans prediction markets for arbitrage opportunities across Polymarket, SX Bet, and Limitless
-- Lets any trader practice on $10,000 simulated funds before risking real capital
+CycleMind closes that gap. The core logic is regime-first: before any signal fires, the system classifies what kind of market this is — Bull Trend, Weak Uptrend, Range Bound, Weak Downtrend, or Bear Trend. No trade executes against the detected regime. Ever. Everything else — DCA sizing, position direction, rebalancing tilt — flows from that single classification.
 
 The vision: give an independent trader the same systematic edge that quant desks have — packaged in a clean, mobile-first dashboard anyone can use.
 
@@ -66,13 +78,9 @@ The alpha extension. Scans sports prediction markets for pricing discrepancies:
 
 ## The Trading Strategy
 
-### Core Philosophy
+### Why It Works
 
-Markets move in regimes. A strategy that works in a bull trend will get destroyed in sideways chop. CycleMind's first job on every cycle is to classify the current market regime before touching position sizing or direction. **No signal fires against the regime. Ever.**
-
-### Regime Engine
-
-Every asset is scored using a composite confidence score weighted across four factors:
+The regime engine scores each asset using a composite confidence score weighted across four factors:
 
 | Factor | Weight |
 |--------|--------|
@@ -89,8 +97,8 @@ A **CASCADE RISK** flag activates when liquidation cluster density is elevated n
 
 ### Signal Stack
 
-**Sentiment (Macro)**
-- Fear & Greed sub-25 (Extreme Fear) increases DCA multiplier — buy more when others panic. 75+ contracts sizing.
+**Macro / Sentiment**
+- Fear & Greed sub-25 (Extreme Fear) increases DCA multiplier — buy more when others panic. Above 75 contracts sizing.
 - Funding Rates: persistent positive = crowded longs = fade. Negative = squeeze potential = long bias.
 
 **Derivatives**
@@ -248,13 +256,14 @@ uvicorn main:app --host 0.0.0.0 --port $PORT
 - [x] AI Trading Agent — toggle, configurable leverage and size, 15-min cycle
 - [x] Open Positions — live P&L, notional, liq price, Close button, AGENT badge
 - [x] Trade History log
-- [x] Demo Trading — $10,000 simulated funds, equity curve
+- [x] Demo Trading — $10,000 simulated funds, equity curve sparkline
 - [x] Prediction Market Arb Scanner — Polymarket, SX Bet, Limitless
 - [x] Arb auto-execute (demo only) + Settlement Tracker
 - [x] Email auth with magic link
 - [x] Client-side Ethereum wallet generation (ethers.js)
 - [x] Emergency Stop — global, persistent across all pages
 - [x] Mobile-first responsive UI across all three interfaces
+- [x] Institutional terminal UI — SVG icons, section labels, visual hierarchy (v7)
 
 ## v8 Roadmap
 
@@ -272,21 +281,23 @@ uvicorn main:app --host 0.0.0.0 --port $PORT
 
 ## Key Development Challenges
 
-**Multi-instance auto-trade race condition** — multiple server instances each ran the background agent loop, firing duplicate orders on the same signal. Solved with a single-instance lock and heartbeat check — only one loop runs at a time.
+**Multi-instance auto-trade race condition** — deploying on Railway caused multiple server instances to each run the background agent loop, firing duplicate orders on the same signal. Solved with a single-instance lock and heartbeat check so only one loop runs at a time.
 
-**Signal noise in range-bound markets** — early builds triggered too many agent trades in sideways conditions. Adding regime detection as a hard gate — not just a weight — eliminated most false positives. CASCADE RISK suppresses all entries when liq risk is elevated.
+**Signal noise in range-bound markets** — early builds triggered too many agent trades in sideways conditions. Adding regime detection as a hard gate (not just a weight) eliminated most false positives. CASCADE RISK suppresses all entries when liquidation risk is elevated near price.
 
 **Arb latency on prediction markets** — Limitless has a mandatory 30-second delay. Solved by flagging delayed sources clearly in the UI and setting minimum edge thresholds high enough to survive latency and still be profitable after fees.
 
-**Client-side wallet generation** — private keys are generated in the browser via ethers.js and never touch the server. Solved with a staged warning flow and explicit confirmation before the key is displayed.
+**Client-side wallet generation** — private keys are generated in the browser via ethers.js and never touch the server. Solved with a staged warning flow and explicit confirmation before the key is displayed so users understand the responsibility before proceeding.
 
 ---
 
-## Views on Agentic Trading
+## Experience with Bitget AI Tools & Views on Agentic Trading
 
-The next frontier is not faster execution — it is regime-aware agents that understand *why* a market is moving, not just *that* it moved. Combining on-chain flows, derivatives positioning crowdedness, and macro sentiment into a single coherent world model — then routing different agent behaviours based on that model — is where the real systematic edge lives.
+The Bitget REST API was reliable throughout — consistent order execution, deep perps liquidity, and clean separation between demo and live accounts via the same API surface. That trust bridge is the product: letting an agent prove itself on paper money before touching real capital is exactly the right architecture for agentic trading.
 
-The path from here is multi-agent: a specialist regime detector feeding a specialist signal scorer feeding a specialist execution agent, all overseen by a risk management agent that can pull the plug on any of them. That is what CycleMind v8 is building toward.
+Playbook is the most exciting next step. CycleMind's regime engine naturally maps to a multi-step strategy execution model — detect regime, score signals, size position, manage risk — and Playbook's structured flow would let that logic run natively on Bitget's infrastructure rather than as an external loop.
+
+The future of agentic trading is not faster execution. It is regime-aware agents that understand *why* a market is moving, not just *that* it moved. The path is multi-agent: a specialist regime detector feeding a specialist signal scorer feeding a specialist execution agent, all overseen by a risk management agent that can pull the plug on any of them. Bitget's infrastructure makes this buildable for independent developers today. That is rare and worth building on.
 
 ---
 
