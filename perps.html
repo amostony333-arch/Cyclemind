@@ -171,8 +171,7 @@
   .signal-card.neutral::before { background: var(--yellow); }
 
   .signal-symbol {
-
-font-size: 1rem;
+    font-size: 1rem;
     font-weight: 700;
     margin-bottom: 4px;
   }
@@ -333,7 +332,7 @@ font-size: 1rem;
   .submit-btn.short { background: linear-gradient(135deg, #ff3355, #ff6680); color: white; }
   .submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* POSITIONS TABLE */
+  /* POSITIONS TABLE */
   .positions-list { display: flex; flex-direction: column; gap: 10px; }
   .position-row {
     background: var(--surface2);
@@ -469,8 +468,7 @@ font-size: 1rem;
     border: 1px dashed var(--border);
     border-radius: 10px;
     padding: 24px;
-
-text-align: center;
+    text-align: center;
     color: var(--muted);
     font-size: 0.85rem;
   }
@@ -503,6 +501,31 @@ text-align: center;
   @keyframes fadeup {
     from { opacity: 0; transform: translateX(-50%) translateY(10px); }
     to { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
+
+  /* FIXED: Emergency Stop button — solid red, always visible */
+  .kill-switch-btn {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    padding: 0.75rem 1.4rem;
+    background: #ff3355;
+    border: none;
+    color: #ffffff;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    font-family: var(--font);
+    z-index: 9998;
+    box-shadow: 0 4px 20px rgba(255, 51, 85, 0.45);
+    transition: opacity 0.2s, box-shadow 0.2s;
+    white-space: nowrap;
+    letter-spacing: 0.01em;
+  }
+  .kill-switch-btn:hover {
+    opacity: 0.9;
+    box-shadow: 0 0 24px rgba(255, 51, 85, 0.6);
   }
 
   .section-gap { margin-bottom: 24px; }
@@ -599,7 +622,7 @@ text-align: center;
               </div>
             </div>
 
-<!-- Size -->
+            <!-- Size -->
             <div class="form-group">
               <label class="form-label">Margin (USD)</label>
               <input class="form-input" type="number" id="demo-size" value="100" min="10" step="10" oninput="onFormChange()">
@@ -684,7 +707,7 @@ text-align: center;
 
       </div>
 
-<!-- Open Positions -->
+      <!-- Open Positions -->
       <div class="card section-gap">
         <div class="card-title">Open Positions</div>
         <div id="open-positions">
@@ -776,8 +799,7 @@ text-align: center;
 
             <div class="order-summary">
               <div class="order-summary-row"><span>Margin</span><span id="real-sum-margin">$50</span></div>
-
-<div class="order-summary-row"><span>Notional</span><span id="real-sum-notional">$250</span></div>
+              <div class="order-summary-row"><span>Notional</span><span id="real-sum-notional">$250</span></div>
               <div class="order-summary-row"><span>Est. Liquidation</span><span id="real-sum-liq">—</span></div>
               <div class="order-summary-row"><span>Current Price</span><span id="real-sum-price">—</span></div>
             </div>
@@ -803,6 +825,11 @@ text-align: center;
   </div>
 
 </div>
+
+<!-- ADDED: Emergency Stop button — visible on all perps pages -->
+<button class="kill-switch-btn" onclick="emergencyStop()">
+  🛑 Emergency Stop
+</button>
 
 <script>
 const API_BASE = "https://cyclemind-production.up.railway.app/api";
@@ -1112,8 +1139,7 @@ function renderDemoPositions(positions) {
             <span class="pos-stat-val">$${pos.notional_usd.toLocaleString()}</span>
           </div>
           <div class="pos-stat">
-
-<span class="pos-stat-label">Liq. Price</span>
+            <span class="pos-stat-label">Liq. Price</span>
             <span class="pos-stat-val" style="color:var(--red)">$${pos.liquidation_price.toLocaleString()}</span>
           </div>
         </div>
@@ -1374,6 +1400,36 @@ async function loadRealPositions() {
     el.innerHTML = html;
   } catch (e) {
     el.innerHTML = `<div class="empty-state" style="color:var(--red)">Could not load live positions.</div>`;
+  }
+}
+
+// ==================== EMERGENCY STOP ====================
+
+async function emergencyStop() {
+  if (!emailUser && !userCredentials) {
+    showToast("No active session to stop", true);
+    return;
+  }
+  if (!confirm("Close ALL positions and halt the agent immediately?")) return;
+
+  if (emailUser) {
+    try {
+      const res = await fetch(`${API_BASE}/perps/demo/positions/${encodeURIComponent(emailUser.email)}`);
+      const data = await res.json();
+      await Promise.all(Object.keys(data.positions || {}).map(id =>
+        fetch(`${API_BASE}/perps/demo/close`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: emailUser.email, position_id: id }),
+        })
+      ));
+      await fetch(`${API_BASE}/kill-switch/${encodeURIComponent(emailUser.email)}`, { method: "POST" });
+      showToast("🛑 All positions closed — agent halted");
+      loadDemoPositions();
+      loadDemoBalance();
+    } catch (e) {
+      showToast(`❌ ${e.message}`, true);
+    }
   }
 }
 
