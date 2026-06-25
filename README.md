@@ -1,12 +1,12 @@
 # CycleMind — AI Market Regime Trading Agent
-### Bitget AI Hackathon Submission
 
 > AI-powered perpetual futures trading on BTC, ETH, SOL — demo or live via Bitget
 
-🌐 **Live Demo:** [cyclemind.vercel.app](https://cyclemind.vercel.app) 
-🐦 **X:** [@cyclemindarc](https://x.com/cyclemindarc)
-📱 **Telegram:** @defitony0x
-👤 **Builder:** [@defitony0x](https://x.com/defitony0x)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-cyclemind.vercel.app-0078ff?style=flat-square)](https://cyclemind.vercel.app)
+[![Hackathon](https://img.shields.io/badge/Bitget_AI_Hackathon-S1-00c6ff?style=flat-square)](https://x.com/cyclemindarc)
+[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+
+🌐 [cyclemind.vercel.app](https://cyclemind.vercel.app) &nbsp;|&nbsp; 🐦 [@cyclemindarc](https://x.com/cyclemindarc) &nbsp;|&nbsp; 📱 Telegram: [@defitony0x](https://t.me/defitony0x)
 
 ---
 
@@ -14,101 +14,100 @@
 
 Most retail crypto traders lose not because they lack access to data — but because they can't process it fast enough or consistently enough to act on it. By the time a trader reads the chart, checks funding rates, glances at Fear & Greed, and decides on a size, the opportunity is gone or the risk profile has changed.
 
-CycleMind was built to close that gap. It is a single platform that:
+CycleMind closes that gap. It is a single platform that:
+
 - Detects the current market regime in real time
-- Scores multi-layer signals across sentiment, technicals, on-chain, and derivatives data
+- Scores multi-layer signals across sentiment, technicals, derivatives, and on-chain data
 - Auto-executes perpetual futures trades via Bitget's API
 - Scans prediction markets for arbitrage opportunities across Polymarket, SX Bet, and Limitless
 - Lets any trader practice on $10,000 simulated funds before risking real capital
 
-The vision: give an independent trader the same systematic edge that quant desks have, packaged in a clean mobile-first dashboard anyone can use.
+The vision: give an independent trader the same systematic edge that quant desks have — packaged in a clean, mobile-first dashboard anyone can use.
 
 ---
 
-## The Three Interfaces
+## Three Interfaces
 
-CycleMind is built across three distinct interfaces, each solving a different layer of the trading problem.
+### 1. Dashboard — Portfolio & Market Intelligence
 
-### Interface 1 — Dashboard (Portfolio & Market Intelligence)
-The original core of CycleMind. Connects to your Bitget account via API, reads your live spot balances, and gives you a full market intelligence layer:
-- **Market Regime Detection** — classifies BTC, ETH, SOL into Bull Trend, Weak Uptrend, Range Bound, Weak Downtrend, or Bear Trend using a composite confidence score
-- **Signal-Based DCA** — scales buy size dynamically based on Fear & Greed Index instead of a fixed calendar
-- **Liquidation Heatmap** — estimates liquidation price clusters across common leverage tiers using live open interest and price data
-- **Funding Rate Capture** — flags historically extreme funding percentiles for delta-neutral opportunities
-- **Portfolio Rebalancer** — reads your live Bitget spot balances, compares against your target allocation (Conservative / Balanced / Aggressive), applies a regime-aware tilt (shifts toward USDT in detected downtrends), and returns a suggested rebalance plan
-- **Entry / Exit Signals** — TP, SL, and MA levels tracked per asset in real time
-- **Portfolio & Trade Suggestions** — personalized suggestions based on your connected Bitget portfolio and current market conditions
-- **Trending on CoinGecko** — live trending coins with price and 24h change
+The core intelligence layer. Connects to your Bitget account via API and gives you:
 
-### Interface 2 — Perps (AI Futures Trading Agent)
+| Module | What It Does |
+|--------|-------------|
+| **Market Regime Detection** | Classifies BTC, ETH, SOL into Bull Trend, Weak Uptrend, Range Bound, Weak Downtrend, or Bear Trend using a composite confidence score |
+| **Signal-Based DCA** | Scales buy size dynamically based on Fear & Greed Index instead of a fixed calendar |
+| **Liquidation Heatmap** | Estimates liquidation price clusters across common leverage tiers using live open interest and price data |
+| **Funding Rate Capture** | Flags historically extreme funding percentiles for delta-neutral opportunities |
+| **Portfolio Rebalancer** | Reads your live Bitget spot balances, compares against target allocation, applies regime-aware tilt, returns a suggested rebalance plan |
+| **Entry / Exit Signals** | TP, SL, and MA levels tracked per asset in real time |
+| **Trending on CoinGecko** | Live trending coins with price and 24h change |
+
+### 2. Perps — AI Futures Trading Agent
+
 The execution layer. AI-powered perpetual futures trading directly on Bitget:
-- **AI Signal Cards** — BTC, ETH, SOL each scored -5 to +5 with direction (LONG / SHORT / NEUTRAL), strength rating, funding rate, and a Quick Trade button
-- **Manual Position Form** — asset selector, Long/Short toggle, margin input, leverage slider (1x–100x) with preset buttons, live trade summary (notional, estimated liquidation price)
-- **AI Trading Agent** — toggle on/off, configurable leverage (default 5x) and position size, auto-executes trades every 15 minutes when signal and regime align
-- **Demo Balance Panel** — Cash (USDT), Total Equity, Starting Balance, P&L
-- **Open Positions** — live P&L, entry price, mark price, notional, liquidation price, Close button per position. Agent-opened positions tagged with AGENT badge
-- **Trade History** — full log of closed trades
 
-### Interface 3 — Arb (Prediction Market Scanner)
-The alpha extension. Scans sports prediction markets across three platforms for pricing discrepancies:
-- **Polymarket** — Live feed
-- **SX Bet** — Live feed
-- **Limitless** — 30 second delayed feed
-- Sport filters: All / NFL / NBA / MLB / NHL / Soccer
-- Configurable minimum edge threshold (default 1.5–2%) and max stake per arb ($50)
-- Auto-execute toggle — runs on demo account only
-- Settlement Tracker — monitors open arb positions through resolution
-- Demo Balance: $1,000 simulated, tracks locked positions and realised P&L
+- **AI Signal Cards** — BTC, ETH, SOL each scored -5 to +5 with direction (LONG / SHORT / NEUTRAL), strength rating, and Quick Trade button
+- **Manual Position Form** — asset selector, Long/Short toggle, margin input, leverage slider (1x–100x) with preset buttons, live trade summary
+- **AI Trading Agent** — toggle on/off, configurable leverage and position size, auto-executes every 15 minutes when signal and regime align
+- **Open Positions** — live P&L, entry price, mark price, notional, liquidation price, Close button per position. Agent-opened positions tagged with AGENT badge
+- **Demo Balance Panel** — Cash (USDT), Total Equity, Starting Balance, P&L
+
+### 3. Arb — Prediction Market Scanner
+
+The alpha extension. Scans sports prediction markets for pricing discrepancies:
+
+- **Sources** — Polymarket (live), SX Bet (live), Limitless (30s delayed)
+- **Sports** — NFL / NBA / MLB / NHL / Soccer
+- **Logic** — when the same outcome is mispriced across platforms and edge clears 2% after fees, both sides execute simultaneously on demo
+- **Settlement Tracker** — monitors open arb positions through resolution
+- **Demo Balance** — $1,000 simulated, tracks locked positions and realised P&L
 
 ---
 
-## The Trading Strategy — Why It Works
+## The Trading Strategy
 
 ### Core Philosophy
 
-Markets move in regimes. A strategy that works in a bull trend will get destroyed in sideways chop. CycleMind's first job on every cycle is to classify *what kind of market this is* before touching position sizing or direction. No signal fires against the regime. Ever.
+Markets move in regimes. A strategy that works in a bull trend will get destroyed in sideways chop. CycleMind's first job on every cycle is to classify the current market regime before touching position sizing or direction. **No signal fires against the regime. Ever.**
 
-### Regime Engine (`regime_engine.py`)
+### Regime Engine
 
-Every asset is scored using a **composite confidence score** weighted across four factors:
+Every asset is scored using a composite confidence score weighted across four factors:
 
 | Factor | Weight |
-|---|---|
+|--------|--------|
 | Indicator Agreement (RSI / MACD / EMA) | 30% |
 | Volume Divergence | 25% |
 | Funding Rate Alignment | 25% |
 | BTC Dominance Momentum | 20% |
 
-Each asset has its own confidence threshold before a signal is considered actionable:
-- BTC: 60%
-- ETH: 62%
-- SOL: 68%
+Per-asset confidence thresholds before a signal is considered actionable:
 
-All modules — liquidation heatmap proximity, funding alignment — feed directly into this confidence score rather than acting as disconnected signals.
+- BTC: 60% &nbsp;|&nbsp; ETH: 62% &nbsp;|&nbsp; SOL: 68%
 
 A **CASCADE RISK** flag activates when liquidation cluster density is elevated near current price. When CASCADE RISK is active, the agent suppresses all new entries regardless of signal score.
 
 ### Signal Stack
 
 **Sentiment (Macro)**
-- Fear & Greed Index: sub-25 (Extreme Fear) increases DCA multiplier — buy more when others panic. 75+ contracts sizing.
+- Fear & Greed sub-25 (Extreme Fear) increases DCA multiplier — buy more when others panic. 75+ contracts sizing.
 - Funding Rates: persistent positive = crowded longs = fade. Negative = squeeze potential = long bias.
 
-**On-Chain and Derivatives**
+**Derivatives**
 - Open Interest across BTC, ETH, SOL — crowdedness indicator
-- Liquidation Heatmap Zones — dense clusters treated as targets and risk zones
+- Liquidation Heatmap Zones — dense clusters treated as both targets and risk zones
 
-**Technical Indicators (`indicators.py`)**
+**Technical Indicators**
 - RSI across multiple timeframes
 - MACD crossover and histogram momentum
 - EMA structure: 20D / 50D / 200D alignment
 - Candlestick pattern recognition
 - Support and resistance proximity scoring
 
-**Signal Scoring**
+### Signal Scoring
 
 | Score | Decision |
-|---|---|
+|-------|----------|
 | ≥ +2 | LONG |
 | -1 to +1 | WAIT |
 | ≤ -2 | SHORT |
@@ -130,18 +129,14 @@ A **CASCADE RISK** flag activates when liquidation cluster density is elevated n
 
 ### Risk Controls
 
-| Control | Value | Behavior |
-|---|---|---|
+| Control | Value | Behaviour |
+|---------|-------|-----------|
 | Daily loss limit | 10% | Agent halts, no new entries |
 | Max position per asset | 40% | Hard cap, agent skips oversized assets |
 | Trade cooldown | 15 minutes | Prevents overtrading in chop |
 | Default agent leverage | 5x | Conservative vs 100x manual max |
 | CASCADE RISK flag | Dynamic | Suppresses all entries near liq clusters |
-| Emergency Stop | Always visible | One tap closes all positions, kills agent |
-
-### Prediction Market Arb Logic
-
-When the same outcome is mispriced across platforms — e.g. Team A at 55% implied on Polymarket but 48% on SX Bet — that is a mathematical edge independent of the actual outcome. CycleMind identifies these gaps, validates they exceed the minimum edge threshold after fees and latency, and executes both sides simultaneously in demo mode.
+| Emergency Stop | Always visible | One tap closes all positions and kills agent |
 
 ---
 
@@ -191,101 +186,37 @@ python3 -m http.server 5500
 
 Open `http://localhost:5500` in your browser.
 
-> Public market-data endpoints (funding rate, open interest, ticker, fear/greed) work without API keys. Portfolio, rebalancer, and live trading features require connecting your own Bitget API key through the Connect modal.
+> Public market-data endpoints (funding rate, open interest, ticker, fear/greed) work without API keys. Portfolio, rebalancer, and live trading features require connecting your Bitget API key through the Connect modal.
 
 ---
 
 ## Deployment
 
 ### Frontend → Vercel
+
 1. Push this repo to GitHub
 2. Import in Vercel, set root directory to `frontend`
 3. Deploy — Vercel auto-detects static sites, no build config needed
 
-### Backend → Railway (or Render)
+### Backend → Railway
+
 1. Import repo in Railway, set root directory to `backend`
 2. Add environment variables from `.env.example` in Railway's dashboard
 3. Set start command:
-   ```
-   uvicorn main:app --host 0.0.0.0 --port $PORT
-   ```
+```bash
+uvicorn main:app --host 0.0.0.0 --port $PORT
+```
 4. Copy the Railway URL, update `API_BASE` in `frontend/app.js`, and set `FRONTEND_ORIGIN` in Railway env vars to your Vercel URL
-
----
-
-## Key Development Challenges and How We Solved Them
-
-**Multi-instance auto-trade race condition**
-Deploying on Kitsop caused multiple server instances to each run the background agent loop, firing duplicate orders on the same signal. Solved with a single-instance lock and heartbeat check — only one loop runs at a time.
-
-**Flat-file user storage**
-Early auth used `users.json`. Works for MVP but creates write conflicts under concurrency. Migration to PostgreSQL is the top priority for v7.
-
-**Client-side wallet generation**
-Wallets are generated in the browser via ethers.js — private keys never touch the server. The UX challenge was making this feel safe without alarming users. Solved with a staged warning flow and explicit confirmation before the key is displayed.
-
-**Signal noise in range-bound markets**
-Early builds triggered too many agent trades in sideways conditions. Adding regime detection as a hard gate — not just a weight — eliminated most false positives. CASCADE RISK suppresses all entries when liq risk is elevated.
-
-**Arb latency on prediction markets**
-Limitless has a mandatory 30-second delay. Solved by flagging delayed sources clearly in the UI and setting minimum edge thresholds high enough to survive latency and still be profitable after fees.
-
-**Signal-to-action gap on Perps**
-Users were losing signal context by the time they navigated to the trade form. Solved by unifying the Perps page — signal cards at the top with inline Quick Trade buttons, manual position form below, demo balance always visible.
-
----
-
-## Features Completed
-
-- [x] Market Regime Detection — 5 regimes, CASCADE RISK, composite confidence score with per-asset thresholds
-- [x] All modules feeding from single `regime_engine.py`
-- [x] Signal-Based DCA with Fear & Greed multiplier
-- [x] Liquidation Heatmap — open interest + leverage tier estimation
-- [x] Funding Rate Capture — extreme percentile flagging
-- [x] Portfolio Rebalancer — live Bitget balances, regime-aware tilt, suggested plan
-- [x] Entry / Exit Signals with TP, SL, MA levels
-- [x] Portfolio & Trade Suggestions
-- [x] Trending on CoinGecko module
-- [x] Live prices with 24h change
-- [x] Perps trading interface — full manual position form (asset, direction, margin, 1x–100x leverage)
-- [x] AI Trading Agent — toggle, configurable leverage and size, 15-min cycle
-- [x] Open Positions — live P&L, notional, liq price, Close button, AGENT badge
-- [x] Trade History log
-- [x] Demo Trading — $10,000 simulated funds, equity curve
-- [x] Prediction Market Arb Scanner — Polymarket, SX Bet, Limitless
-- [x] Arb auto-execute (demo only) + Settlement Tracker
-- [x] Email auth with magic link
-- [x] Client-side Ethereum wallet generation (ethers.js)
-- [x] Emergency Stop — global, persistent across all pages
-- [x] Connect Bitget modal with Conservative / Balanced / Aggressive risk profiles
-- [x] Mobile-first responsive UI across all three interfaces
-
----
-
-## What Is Still Missing / Next Steps
-
-### v8 Roadmap
-
-- [ ] Full Bitget Playbook integration — structured multi-step strategy execution
-- [ ] Multi-agent infrastructure — specialist agents for regime, signals, execution, and risk running in parallel
-- [ ] Live prediction market arb execution on real accounts
-- [ ] Backtest engine — validate signal edge against historical OHLCV data
-- [ ] Leaderboard — rank top demo performers
-- [ ] Push notifications — signal triggers and agent trade alerts via mobile, X, Telegram
-- [ ] Expanded asset coverage beyond BTC / ETH / SOL
-- [ ] Database migration — users.json → PostgreSQL
-- [ ] On-chain Bitget Wallet integration
-- [ ] Trade alert webhooks — Telegram bot and X post on every agent trade
 
 ---
 
 ## Stack
 
 | Layer | Tech |
-|---|---|
+|-------|------|
 | Backend | FastAPI (Python) |
 | Frontend | Vanilla JS, HTML, CSS |
-| Hosting | Kitsop (API) + Vercel (frontend) |
+| Hosting | Railway (API) + Vercel (frontend) |
 | Exchange | Bitget REST API — prices, OI, funding, orders, portfolio |
 | Wallet | ethers.js (client-side key generation) |
 | Prediction Markets | Polymarket API, SX Bet API, Limitless API |
@@ -298,31 +229,64 @@ Users were losing signal context by the time they navigated to the trade form. S
 
 - **Bitget REST API** — live prices, open interest, funding rates, order placement and management for BTC/USDT, ETH/USDT, SOL/USDT perpetual futures
 - **Bitget Perps** — primary trading venue for the AI agent
-- **Bitget Playbook** — referenced in v6 architecture, full native integration planned for v7
-- API key auth: Connect modal accepts key + secret + passphrase with read-only or trade permissions based on user intent
+- **Bitget Playbook** — full native integration planned for v8
+- **API key auth** — Connect modal accepts key + secret + passphrase with read-only or trade permissions based on user intent
 
-> API keys used through the Connect modal should be **read-only** unless you explicitly intend to enable live trade execution. This MVP stores credentials in browser localStorage — for production deployments with real users, credentials should be encrypted at rest server-side.
+> API keys used through the Connect modal should be read-only unless you explicitly intend to enable live trade execution. This MVP stores credentials in browser localStorage — for production deployments, credentials should be encrypted at rest server-side.
+
+---
+
+## Features Completed
+
+- [x] Market Regime Detection — 5 regimes, CASCADE RISK, composite confidence score with per-asset thresholds
+- [x] Signal-Based DCA with Fear & Greed multiplier
+- [x] Liquidation Heatmap — open interest + leverage tier estimation
+- [x] Funding Rate Capture — extreme percentile flagging
+- [x] Portfolio Rebalancer — live Bitget balances, regime-aware tilt
+- [x] Entry / Exit Signals with TP, SL, MA levels
+- [x] Perps trading interface — full manual position form (1x–100x leverage)
+- [x] AI Trading Agent — toggle, configurable leverage and size, 15-min cycle
+- [x] Open Positions — live P&L, notional, liq price, Close button, AGENT badge
+- [x] Trade History log
+- [x] Demo Trading — $10,000 simulated funds, equity curve
+- [x] Prediction Market Arb Scanner — Polymarket, SX Bet, Limitless
+- [x] Arb auto-execute (demo only) + Settlement Tracker
+- [x] Email auth with magic link
+- [x] Client-side Ethereum wallet generation (ethers.js)
+- [x] Emergency Stop — global, persistent across all pages
+- [x] Mobile-first responsive UI across all three interfaces
+
+## v8 Roadmap
+
+- [ ] Full Bitget Playbook integration — structured multi-step strategy execution
+- [ ] Multi-agent infrastructure — specialist agents for regime, signals, execution, and risk running in parallel
+- [ ] Live prediction market arb execution on real accounts
+- [ ] Backtest engine — validate signal edge against historical OHLCV data
+- [ ] Leaderboard — rank top demo performers
+- [ ] Push notifications — signal triggers and agent trade alerts via Telegram and X
+- [ ] Expanded asset coverage beyond BTC / ETH / SOL
+- [ ] Database migration — users.json → PostgreSQL
+- [ ] Trade alert webhooks — Telegram bot and X post on every agent trade
+
+---
+
+## Key Development Challenges
+
+**Multi-instance auto-trade race condition** — multiple server instances each ran the background agent loop, firing duplicate orders on the same signal. Solved with a single-instance lock and heartbeat check — only one loop runs at a time.
+
+**Signal noise in range-bound markets** — early builds triggered too many agent trades in sideways conditions. Adding regime detection as a hard gate — not just a weight — eliminated most false positives. CASCADE RISK suppresses all entries when liq risk is elevated.
+
+**Arb latency on prediction markets** — Limitless has a mandatory 30-second delay. Solved by flagging delayed sources clearly in the UI and setting minimum edge thresholds high enough to survive latency and still be profitable after fees.
+
+**Client-side wallet generation** — private keys are generated in the browser via ethers.js and never touch the server. Solved with a staged warning flow and explicit confirmation before the key is displayed.
 
 ---
 
 ## Views on Agentic Trading
 
-The next frontier is not faster execution — it is regime-aware agents that understand *why* a market is moving, not just that it moved. Combining on-chain flows, derivatives positioning crowdedness, and macro sentiment into a single coherent world model — then routing different agent behaviors based on that model — is where the real systematic edge lives.
+The next frontier is not faster execution — it is regime-aware agents that understand *why* a market is moving, not just *that* it moved. Combining on-chain flows, derivatives positioning crowdedness, and macro sentiment into a single coherent world model — then routing different agent behaviours based on that model — is where the real systematic edge lives.
 
-The path from here is multi-agent: a specialist regime detector feeding a specialist signal scorer feeding a specialist execution agent, all overseen by a risk management agent that can pull the plug on any of them. That is what CycleMind v7 is building toward.
-
-Bitget's infrastructure makes this possible for independent builders. Reliable order execution, deep perps liquidity, and demo + live account separation via the same API surface are exactly what you need to let an agent prove itself on paper money before touching real capital. The trust bridge is the product.
-
----
-
-## Submission Checklist
-
-- [x] Live demo publicly accessible — [cyclemind.vercel.app](https://cyclemind.vercel.app) (no login required)
-- [x] GitHub repo — [github.com/amostony333-arch/Cyclemind](https://github.com/amostony333-arch/Cyclemind)
-- [x] Project post with #BitgetHackathon and @BitgetAI — [@cyclemindarc on X](https://x.com/cyclemindarc)
-- [x] Repost of official Bitget campaign post
-- [x] Live / paper trading log (upload to GitHub)
-- [x] Demo video
+The path from here is multi-agent: a specialist regime detector feeding a specialist signal scorer feeding a specialist execution agent, all overseen by a risk management agent that can pull the plug on any of them. That is what CycleMind v8 is building toward.
 
 ---
 
@@ -330,8 +294,8 @@ Bitget's infrastructure makes this possible for independent builders. Reliable o
 
 CycleMind is a research and signal tool. Nothing here is financial advice. Trading perpetual futures carries significant risk of loss. Always use appropriate position sizing and risk controls.
 
+Still in beta. Honest feedback appreciated.
+
 ---
 
-*Still in beta. Honest feedback appreciated.*
-
-#BitgetHackathon @BitgetAI
+Built for the **Bitget AI Builder Base Camp Hackathon S1** &nbsp;|&nbsp; #BitgetHackathon @BitgetAI
